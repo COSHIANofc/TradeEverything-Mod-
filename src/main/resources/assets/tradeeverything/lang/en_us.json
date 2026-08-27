@@ -1,0 +1,15 @@
+{
+  "entity.tradeeverything.trader": "Trading Post Merchant",
+  "category.tradeeverything.building_blocks": "Building Blocks Merchant",
+  "category.tradeeverything.natural_resources": "Natural Resources Merchant",
+  "category.tradeeverything.tools_and_combat": "Tools & Combat Merchant",
+  "category.tradeeverything.food_and_brewing": "Food & Brewing Merchant",
+  "category.tradeeverything.redstone_and_transportation": "Redstone & Transportation Merchant",
+  "category.tradeeverything.decoration_and_utility": "Decoration & Utility Merchant",
+  "category.tradeeverything.rare_and_technical": "Rare & Technical Merchant",
+  "category.tradeeverything.miscellaneous": "Miscellaneous Merchant",
+  "message.tradeeverything.page": "Catalog page %s/%s",
+  "command.tradeeverything.place.success": "Trading Post placed near %s %s %s",
+  "command.tradeeverything.place.height": "Position is outside world height (%s to %s)",
+  "command.tradeeverything.verify": "Eligible: %s, categorized: %s, duplicates: %s, missing: %s, categories: %s, prices: %s (%s accepted, %s rejected)"
+}
