@@ -6,7 +6,6 @@ import java.util.Comparator;
 import java.util.EnumMap;
 import java.util.HashSet;
 import java.util.List;
-import java.util.Map;
 import java.util.Set;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.resources.Identifier;
@@ -16,8 +15,8 @@ import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 
 public final class Catalog {
-	public static final int PAGE_SIZE = 40;
 	private static final EnumMap<Category, List<Item>> ITEMS = new EnumMap<>(Category.class);
+	private static List<ClerkPage> pages = List.of();
 
 	private Catalog() {}
 
@@ -31,16 +30,22 @@ public final class Catalog {
 			}
 		});
 		ITEMS.values().forEach(list -> list.sort(Comparator.comparing(i -> BuiltInRegistries.ITEM.getKey(i).toString())));
+		List<ClerkPage> generated = new ArrayList<>();
+		int limit = PriceConfig.snapshot().maxOffers();
+		for (Category category : Category.values()) {
+			List<Item> categoryItems = ITEMS.get(category);
+			int total = Math.max(1, (categoryItems.size() + limit - 1) / limit);
+			for (int page = 0; page < total; page++) {
+				int from = page * limit;
+				generated.add(new ClerkPage(category, page, total, List.copyOf(categoryItems.subList(Math.min(from, categoryItems.size()), Math.min(from + limit, categoryItems.size())))));
+			}
+		}
+		pages = List.copyOf(generated);
 	}
 
 	public static List<Item> items(Category category) { return List.copyOf(ITEMS.getOrDefault(category, List.of())); }
-	public static int pages(Category category) { return Math.max(1, (items(category).size() + PAGE_SIZE - 1) / PAGE_SIZE); }
-	public static List<Item> page(Category category, int page) {
-		List<Item> all = items(category);
-		int normalized = Math.floorMod(page, pages(category));
-		int from = normalized * PAGE_SIZE;
-		return all.subList(Math.min(from, all.size()), Math.min(from + PAGE_SIZE, all.size()));
-	}
+	public static List<ClerkPage> pages() { return pages; }
+	public static ClerkPage page(int globalIndex) { return pages.get(globalIndex); }
 
 	public static Category classify(Item item, Identifier id) {
 		var holder = item.builtInRegistryHolder();
@@ -70,7 +75,7 @@ public final class Catalog {
 		Set<Item> eligible = new HashSet<>();
 		BuiltInRegistries.ITEM.forEach(item -> { Identifier id = BuiltInRegistries.ITEM.getKey(item); if (id != null && id.getNamespace().equals("minecraft") && !id.getPath().equals("air")) eligible.add(item); });
 		Set<Item> seen = new HashSet<>(); int duplicates = 0; boolean validOffers = true;
-		for (List<Item> category : ITEMS.values()) for (Item item : category) {
+		for (ClerkPage page : pages) for (Item item : page.items()) {
 			if (!seen.add(item)) duplicates++;
 			var price = PriceConfig.resolve(item);
 			validOffers &= price.emeraldValue() > 0 && price.outputCount() > 0 && !new ItemStack(item, price.outputCount()).isEmpty();
@@ -83,4 +88,5 @@ public final class Catalog {
 	public record Audit(int eligible, int categorized, int duplicates, int missing, boolean airIncluded, boolean validOffers) {
 		public boolean valid() { return eligible == categorized && duplicates == 0 && missing == 0 && !airIncluded && validOffers; }
 	}
+	public record ClerkPage(Category category, int pageIndex, int pageCount, List<Item> items) {}
 }
