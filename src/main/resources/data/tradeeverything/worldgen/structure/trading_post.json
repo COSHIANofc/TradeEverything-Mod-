@@ -1,0 +1,7 @@
+{
+  "type": "tradeeverything:trading_post",
+  "biomes": "#tradeeverything:has_structure/trading_post",
+  "spawn_overrides": {},
+  "step": "surface_structures",
+  "terrain_adaptation": "beard_thin"
+}

@@ -1,0 +1,9 @@
+{
+  "schemaVersion": 1,
+  "id": "tradeeverything-gametest",
+  "version": "0.1.0",
+  "name": "TradeEverything GameTests",
+  "environment": "*",
+  "entrypoints": {"fabric-gametest": ["com.coshian.tradeeverything.TradeEverythingGameTest"]},
+  "depends": {"tradeeverything": "*", "fabric-gametest-api-v1": "*"}
+}

@@ -1,0 +1,18 @@
+{
+  "items": {
+    "minecraft:diamond": {"emeralds": 24, "output": 1},
+    "minecraft:netherite_ingot": {"emeralds": 144, "output": 1},
+    "minecraft:elytra": {"emeralds": 288, "output": 1},
+    "minecraft:dragon_egg": {"emeralds": 576, "output": 1},
+    "minecraft:nether_star": {"emeralds": 288, "output": 1},
+    "minecraft:enchanted_golden_apple": {"emeralds": 128, "output": 1},
+    "minecraft:command_block": {"emeralds": 576, "output": 1},
+    "minecraft:chain_command_block": {"emeralds": 576, "output": 1},
+    "minecraft:repeating_command_block": {"emeralds": 576, "output": 1},
+    "minecraft:structure_block": {"emeralds": 576, "output": 1},
+    "minecraft:jigsaw": {"emeralds": 576, "output": 1},
+    "minecraft:barrier": {"emeralds": 256, "output": 1},
+    "minecraft:bedrock": {"emeralds": 576, "output": 1},
+    "minecraft:spawner": {"emeralds": 576, "output": 1}
+  }
+}
