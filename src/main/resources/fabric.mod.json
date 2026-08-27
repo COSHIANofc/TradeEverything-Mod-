@@ -7,11 +7,9 @@
   "authors": ["COSHIANofc"],
   "contact": {"sources": "https://github.com/COSHIANofc/TradeEverything-Mod-"},
   "license": "Apache-2.0",
-  "icon": "assets/tradeeverything/icon.png",
-  "environment": "*",
+  "environment": "server",
   "entrypoints": {
-    "main": ["com.coshian.tradeeverything.TradeEverything"],
-    "client": ["com.coshian.tradeeverything.client.TradeEverythingClient"]
+    "server": ["com.coshian.tradeeverything.TradeEverything"]
   },
   "depends": {
     "fabricloader": ">=0.19.3",

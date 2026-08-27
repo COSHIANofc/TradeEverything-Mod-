@@ -1,6 +1,6 @@
 .gradle/
 .gradle-user-home/
-build/
+/build/
 out/
 run/
 runs/
@@ -12,4 +12,4 @@ runs/
 logs/
 crash-reports/
 saves/
-config/tradeeverything-prices.json
+config/tradeeverything.json

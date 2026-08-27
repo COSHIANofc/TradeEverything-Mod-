@@ -9,14 +9,20 @@ group = project.maven_group
 base { archivesName = project.archives_base_name }
 
 loom {
-	splitEnvironmentSourceSets()
-
 	mods {
 		tradeeverything {
 			sourceSet sourceSets.main
-			sourceSet sourceSets.client
 		}
 	}
+}
+
+sourceSets {
+	templategen {
+		java.srcDir 'src/templategen/java'
+		compileClasspath += sourceSets.main.compileClasspath
+		runtimeClasspath += output + compileClasspath
+	}
+	main.resources.srcDir layout.buildDirectory.dir('generated-resources')
 }
 
 fabricApi {
@@ -37,10 +43,21 @@ dependencies {
 	testImplementation "net.fabricmc:fabric-loader-junit:${project.loader_version}"
 }
 
+tasks.register('generateStructureTemplates', JavaExec) {
+	dependsOn tasks.named('compileTemplategenJava')
+	classpath = sourceSets.templategen.runtimeClasspath
+	mainClass = 'com.coshian.tradeeverything.build.TradingPostTemplateGenerator'
+	args layout.buildDirectory.file('generated-resources/data/tradeeverything/structure/trading_post.nbt').get().asFile.absolutePath
+	outputs.file layout.buildDirectory.file('generated-resources/data/tradeeverything/structure/trading_post.nbt')
+}
+
 processResources {
+	dependsOn tasks.named('generateStructureTemplates')
 	inputs.property 'version', project.version
 	filesMatching('fabric.mod.json') { expand version: inputs.properties.version }
 }
+
+tasks.matching { it.name == 'sourcesJar' }.configureEach { dependsOn tasks.named('generateStructureTemplates') }
 
 tasks.withType(JavaCompile).configureEach { options.release = 25 }
 
@@ -55,6 +72,7 @@ java {
 }
 
 jar {
+	includeEmptyDirs = false
 	inputs.property 'archivesName', project.base.archivesName
 	from('LICENSE') { rename { "${it}_${inputs.properties.archivesName}" } }
 }
