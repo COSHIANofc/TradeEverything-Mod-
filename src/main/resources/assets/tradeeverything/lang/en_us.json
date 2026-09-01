@@ -1,7 +1,7 @@
 {
   "screen.tradeeverything.title": "TradeEverything Merchant",
   "screen.tradeeverything.search": "Search items",
-  "screen.tradeeverything.search_hint": "Search items...",
+  "screen.tradeeverything.search_placeholder": "Search",
   "screen.tradeeverything.results": "%s results",
   "screen.tradeeverything.buy": "Buy",
   "screen.tradeeverything.price": "%s emeralds",
@@ -17,5 +17,8 @@
   "screen.tradeeverything.result.disabled_item": "That item is disabled",
   "screen.tradeeverything.result.invalid_entry": "Catalog entry is invalid",
   "screen.tradeeverything.result.insufficient_payment": "Not enough emerald currency",
-  "screen.tradeeverything.result.inventory_full": "Not enough inventory space"
+  "screen.tradeeverything.result.inventory_full": "Not enough inventory space",
+  "command.tradeeverything.summon.success": "TradeEverything merchant summoned at %s %s %s",
+  "command.tradeeverything.summon.failed": "Could not create a TradeEverything merchant",
+  "command.tradeeverything.summon.invalid_position": "The summon position is outside world height or is not loaded"
 }

@@ -2,6 +2,7 @@ package com.coshian.tradeeverything;
 
 import com.coshian.tradeeverything.catalog.SurvivalEligibility;
 import com.coshian.tradeeverything.catalog.TradeCatalog;
+import com.coshian.tradeeverything.command.TradeEverythingCommands;
 import com.coshian.tradeeverything.entity.ClerkManager;
 import com.coshian.tradeeverything.menu.TradeEverythingMenu;
 import com.coshian.tradeeverything.price.PriceConfig;
@@ -9,8 +10,11 @@ import com.coshian.tradeeverything.trade.TradeTransactionService;
 import com.coshian.tradeeverything.world.TradingPostTerrain;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import com.mojang.brigadier.CommandDispatcher;
+import com.mojang.brigadier.tree.ArgumentCommandNode;
 import net.fabricmc.fabric.api.gametest.v1.GameTest;
 import net.minecraft.core.BlockPos;
+import net.minecraft.commands.CommandSourceStack;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.core.registries.Registries;
 import net.minecraft.gametest.framework.GameTestHelper;
@@ -32,6 +36,18 @@ import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.Vec3;
 
 public final class TradeEverythingGameTest {
+	@GameTest
+	public void treCommandTreeReplacesLegacyRoot(GameTestHelper helper) {
+		CommandDispatcher<CommandSourceStack> dispatcher = new CommandDispatcher<>();
+		TradeEverythingCommands.registerForTesting(dispatcher);
+		var root = dispatcher.getRoot().getChild("tre");
+		helper.assertTrue(root != null && root.getChild("place") != null && root.getChild("summon") != null && root.getChild("verify") != null && root.getChild("reload") != null, "The /tre command tree must contain all administrative subcommands");
+		helper.assertTrue(((ArgumentCommandNode<CommandSourceStack, ?>)root.getChild("place").getChild("pos")).getType() instanceof net.minecraft.commands.arguments.coordinates.BlockPosArgument, "/tre place must use Minecraft's block position argument");
+		helper.assertTrue(((ArgumentCommandNode<CommandSourceStack, ?>)root.getChild("summon").getChild("pos")).getType() instanceof net.minecraft.commands.arguments.coordinates.BlockPosArgument, "/tre summon must use Minecraft's block position argument");
+		helper.assertTrue(dispatcher.getRoot().getChild("tradeeverything") == null, "The legacy /tradeeverything root must not be registered");
+		helper.succeed();
+	}
+
 	@GameTest
 	public void catalogIntegrityAndEligibility(GameTestHelper helper) {
 		TradeCatalog.rebuild(); TradeCatalog.Audit audit = TradeCatalog.audit();
@@ -167,6 +183,20 @@ public final class TradeEverythingGameTest {
 		helper.runAfterDelay(40, () -> {
 			helper.assertTrue(merchant.distanceToSqr(anchor.getX() + .5, anchor.getY(), anchor.getZ() + .5) < 0.0001 && merchant.isNoAi() && merchant.getNavigation().isDone(), "Merchant must remain stationary without pathfinding"); helper.succeed();
 		});
+	}
+
+	@GameTest
+	public void standaloneMerchantUsesTheCanonicalInitializer(GameTestHelper helper) {
+		BlockPos relative = new BlockPos(5, 1, 5); BlockPos absolute = helper.absolutePos(relative);
+		Villager ordinary = EntityTypes.VILLAGER.create(helper.getLevel(), EntitySpawnReason.COMMAND);
+		helper.assertTrue(ordinary != null, "Ordinary villager must be creatable");
+		snapCenter(ordinary, helper.absolutePos(new BlockPos(7, 1, 5))); helper.getLevel().addFreshEntity(ordinary);
+		Villager summoned = ClerkManager.createMerchant(helper.getLevel(), absolute).orElseThrow();
+		helper.assertTrue(summoned.entityTags().contains(ClerkManager.CLERK_TAG) && summoned.entityTags().contains(ClerkManager.PRIMARY_TAG), "Standalone merchant must use canonical tags");
+		helper.assertTrue(summoned.isNoAi() && ClerkManager.anchor(summoned).equals(java.util.Optional.of(absolute)), "Standalone merchant must persist the requested anchor and remain stationary");
+		helper.assertTrue(summoned.getOffers().isEmpty(), "Standalone merchant must use the searchable catalog rather than giant MerchantOffers");
+		helper.assertTrue(ordinary.isAlive() && !ordinary.entityTags().contains(ClerkManager.CLERK_TAG), "Standalone summon must not modify ordinary villagers");
+		helper.succeed();
 	}
 
 	private static Villager createMerchant(GameTestHelper helper, BlockPos relative) {

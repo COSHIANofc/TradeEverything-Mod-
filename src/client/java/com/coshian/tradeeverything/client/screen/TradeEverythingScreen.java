@@ -2,6 +2,7 @@ package com.coshian.tradeeverything.client.screen;
 
 import com.coshian.tradeeverything.menu.TradeEverythingMenu;
 import com.coshian.tradeeverything.network.TradePayloads.PurchaseRequest;
+import com.coshian.tradeeverything.search.SearchInputRouting;
 import com.coshian.tradeeverything.search.TradeSearchIndex;
 import java.util.Comparator;
 import java.util.List;
@@ -10,6 +11,8 @@ import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.minecraft.client.gui.components.Button;
 import net.minecraft.client.gui.components.EditBox;
 import net.minecraft.client.gui.screens.inventory.AbstractContainerScreen;
+import net.minecraft.client.input.CharacterEvent;
+import net.minecraft.client.input.KeyEvent;
 import net.minecraft.client.input.MouseButtonEvent;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.network.chat.Component;
@@ -33,7 +36,7 @@ public final class TradeEverythingScreen extends AbstractContainerScreen<TradeEv
 	@Override protected void init() {
 		super.init();
 		search = new EditBox(font, leftPos + 10, topPos + 22, 280, 20, Component.translatable("screen.tradeeverything.search"));
-		search.setHint(Component.translatable("screen.tradeeverything.search_hint")); search.setMaxLength(128); search.setResponder(this::filter);
+		search.setHint(Component.translatable("screen.tradeeverything.search_placeholder")); search.setMaxLength(128); search.setResponder(this::filter);
 		addRenderableWidget(search);
 		buy = Button.builder(Component.translatable("screen.tradeeverything.buy"), button -> purchase()).bounds(leftPos + 205, topPos + 180, 85, 20).build();
 		addRenderableWidget(buy); setInitialFocus(search); rebuildIfNeeded();
@@ -72,6 +75,18 @@ public final class TradeEverythingScreen extends AbstractContainerScreen<TradeEv
 		return count(Items.EMERALD_BLOCK) >= blocks && count(Items.EMERALD) >= emeralds;
 	}
 	private int count(net.minecraft.world.item.Item item) { return minecraft.player.getInventory().getNonEquipmentItems().stream().filter(stack -> stack.is(item)).mapToInt(ItemStack::getCount).sum(); }
+
+	@Override public boolean keyPressed(KeyEvent event) {
+		boolean focused = search != null && search.isFocused();
+		boolean editBoxHandled = focused && search.keyPressed(event);
+		if (SearchInputRouting.consumesFocusedKey(focused, editBoxHandled, focused && search.canConsumeInput(), event.isEscape())) return true;
+		return super.keyPressed(event);
+	}
+
+	@Override public boolean charTyped(CharacterEvent event) {
+		if (search != null && search.isFocused() && search.charTyped(event)) return true;
+		return super.charTyped(event);
+	}
 
 	@Override public void extractBackground(GuiGraphicsExtractor graphics, int mouseX, int mouseY, float partialTick) {
 		super.extractBackground(graphics, mouseX, mouseY, partialTick);

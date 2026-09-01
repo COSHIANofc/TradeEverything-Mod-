@@ -2,6 +2,10 @@
 
 ## [Unreleased]
 
+- Set the active development version to `0.2.a-dev`.
+- Fixed focused catalog-search keyboard routing and added localized search placeholders.
+- Renamed the administrative command root from `/tradeeverything` to `/tre`.
+- Added `/tre summon [<x> <y> <z>]` for standalone canonical TradeEverything merchants.
 - Replaced numbered category/page clerks with one canonical merchant per Trading Post.
 - Added a client-side searchable catalog screen with localized-name and registry-ID filtering.
 - Added bounded catalog synchronization and server-authoritative purchase payloads with session, distance, payment, capacity, and stale-version validation.

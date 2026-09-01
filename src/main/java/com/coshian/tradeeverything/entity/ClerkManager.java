@@ -78,17 +78,24 @@ public final class ClerkManager {
 		Villager villager = existing.isEmpty() ? null : existing.getFirst();
 		boolean created = false;
 		if (villager == null) {
-			villager = EntityTypes.VILLAGER.create(level, EntitySpawnReason.STRUCTURE);
-			if (villager != null) {
-				villager.snapTo(marker.getX(), marker.getY(), marker.getZ(), marker.getYRot(), 0);
-				villager.addTag(CLERK_TAG); setAnchor(villager, pos);
-				villager.setPersistenceRequired(); villager.setCanPickUpLoot(false); villager.setAge(0);
-				villager.setVillagerData(villager.getVillagerData().withProfession(level.registryAccess(), VillagerProfession.NITWIT).withLevel(5));
-				configure(villager); level.addFreshEntityWithPassengers(villager); created = true;
-			}
+			created = createMerchant(level, pos).isPresent();
 		} else configure(villager);
 		for (int i = 1; i < existing.size(); i++) existing.get(i).discard();
 		marker.discard(); return created;
+	}
+
+	/** Creates a standalone or structure-backed canonical merchant using the shared persistent identity. */
+	public static Optional<Villager> createMerchant(ServerLevel level, BlockPos pos) {
+		Villager villager = EntityTypes.VILLAGER.create(level, EntitySpawnReason.COMMAND);
+		if (villager == null) return Optional.empty();
+		villager.snapTo(pos.getX() + 0.5, pos.getY(), pos.getZ() + 0.5, 0, 0);
+		villager.addTag(CLERK_TAG); setAnchor(villager, pos);
+		villager.setPersistenceRequired(); villager.setCanPickUpLoot(false); villager.setAge(0);
+		villager.setVillagerData(villager.getVillagerData().withProfession(level.registryAccess(), VillagerProfession.NITWIT).withLevel(5));
+		configure(villager);
+		level.addFreshEntityWithPassengers(villager);
+		tracked(level).add(villager);
+		return Optional.of(villager);
 	}
 
 	public static void markAllDirty(MinecraftServer server) {
