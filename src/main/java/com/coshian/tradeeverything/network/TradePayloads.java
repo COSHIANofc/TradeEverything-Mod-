@@ -46,6 +46,15 @@ public final class TradePayloads {
 		@Override public Type<PurchaseRequest> type() { return TYPE; }
 	}
 
+	/** Bounded request data only; all Sell economics and inventory state remain server-authoritative. */
+	public record SellRequest(int containerId, int version, Identifier itemId, int quantity) implements CustomPacketPayload {
+		public static final Type<SellRequest> TYPE = new Type<>(TradeEverything.id("sell"));
+		public static final StreamCodec<RegistryFriendlyByteBuf, SellRequest> CODEC = StreamCodec.ofMember(SellRequest::write, SellRequest::read);
+		private static SellRequest read(RegistryFriendlyByteBuf buffer) { return new SellRequest(buffer.readContainerId(), buffer.readVarInt(), buffer.readIdentifier(), buffer.readVarInt()); }
+		private void write(RegistryFriendlyByteBuf buffer) { buffer.writeContainerId(containerId); buffer.writeVarInt(version); buffer.writeIdentifier(itemId); buffer.writeVarInt(quantity); }
+		@Override public Type<SellRequest> type() { return TYPE; }
+	}
+
 	public record PurchaseResult(int containerId, boolean success, String message) implements CustomPacketPayload {
 		public static final Type<PurchaseResult> TYPE = new Type<>(TradeEverything.id("purchase_result"));
 		public static final StreamCodec<RegistryFriendlyByteBuf, PurchaseResult> CODEC = StreamCodec.ofMember(PurchaseResult::write, PurchaseResult::read);

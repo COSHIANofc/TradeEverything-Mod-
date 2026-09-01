@@ -5,6 +5,8 @@ import com.coshian.tradeeverything.catalog.TradeCatalog;
 import com.coshian.tradeeverything.command.TradeEverythingCommands;
 import com.coshian.tradeeverything.entity.ClerkManager;
 import com.coshian.tradeeverything.menu.TradeEverythingMenu;
+import com.coshian.tradeeverything.network.TradeNetworking;
+import com.coshian.tradeeverything.network.TradePayloads.SellRequest;
 import com.coshian.tradeeverything.price.PriceConfig;
 import com.coshian.tradeeverything.trade.TradeTransactionService;
 import com.coshian.tradeeverything.world.TradingPostTerrain;
@@ -15,8 +17,11 @@ import com.mojang.brigadier.tree.ArgumentCommandNode;
 import net.fabricmc.fabric.api.gametest.v1.GameTest;
 import net.minecraft.core.BlockPos;
 import net.minecraft.commands.CommandSourceStack;
+import net.minecraft.core.component.DataComponents;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.core.registries.Registries;
+import net.minecraft.network.chat.Component;
+import net.minecraft.resources.Identifier;
 import net.minecraft.gametest.framework.GameTestHelper;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.resources.ResourceKey;
@@ -29,7 +34,9 @@ import net.minecraft.world.entity.decoration.ArmorStand;
 import net.minecraft.world.entity.npc.villager.Villager;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.item.ItemStackTemplate;
 import net.minecraft.world.item.Items;
+import net.minecraft.world.item.component.BundleContents;
 import net.minecraft.world.level.GameType;
 import net.minecraft.world.level.storage.TagValueOutput;
 import net.minecraft.world.phys.AABB;
@@ -92,10 +99,10 @@ public final class TradeEverythingGameTest {
 		var merchants = helper.getLevel().getEntities(EntityTypes.VILLAGER, new AABB(merchant.blockPosition()).inflate(4), v -> v.entityTags().contains(ClerkManager.CLERK_TAG));
 		helper.assertTrue(merchants.size() == 1 && merchant.entityTags().contains(ClerkManager.PRIMARY_TAG), "Repeated initialization must retain one primary merchant");
 		helper.assertTrue(merchant.getOffers().isEmpty(), "Complete catalog must not be stored as MerchantOffers");
-		helper.assertTrue(merchant.isNoAi() && ClerkManager.anchor(merchant).isPresent(), "Merchant must be anchored");
+		helper.assertTrue(!merchant.isNoAi() && ClerkManager.anchor(merchant).isPresent(), "Merchant must retain normal villager AI and its anchor");
 		TagValueOutput output = TagValueOutput.createWithContext(ProblemReporter.DISCARDING, helper.getLevel().registryAccess()); merchant.save(output);
 		Entity loaded = EntityType.loadEntityRecursive(output.buildResult(), helper.getLevel(), new net.minecraft.world.entity.EntitySpawnRequest(EntitySpawnReason.LOAD, false), entity -> entity);
-		helper.assertTrue(loaded instanceof Villager restored && restored.isNoAi() && restored.entityTags().contains(ClerkManager.PRIMARY_TAG)
+		helper.assertTrue(loaded instanceof Villager restored && !restored.isNoAi() && restored.entityTags().contains(ClerkManager.PRIMARY_TAG)
 			&& ClerkManager.anchor(restored).equals(ClerkManager.anchor(merchant)), "Primary identity and anchor must serialize");
 		loaded.discard(); helper.succeed();
 	}
@@ -176,12 +183,74 @@ public final class TradeEverythingGameTest {
 		}
 	}
 
+	@GameTest
+	public void serverSellUsesCatalogPricingAndMutatesInventoryAtomically(GameTestHelper helper) {
+		Path directory = null;
+		try {
+			directory = Files.createTempDirectory("tradeeverything-sell-test-");
+			Path config = directory.resolve(PriceConfig.FILE_NAME);
+			Files.writeString(config, """
+				{
+				  "catalog_version": 93,
+				  "items": {
+				    "minecraft:diamond": {"emeralds": 10},
+				    "minecraft:cobblestone": {"emeralds": 1},
+				    "minecraft:oak_log": {"enabled": false}
+				  }
+				}
+				""");
+			PriceConfig.load(config, false); TradeCatalog.rebuild();
+			Villager merchant = createMerchant(helper, new BlockPos(2, 1, 2));
+			var player = (net.minecraft.server.level.ServerPlayer)helper.makeMockServerPlayer(GameType.SURVIVAL);
+			player.setPos(merchant.position()); player.containerMenu = new TradeEverythingMenu(11, player.getInventory(), merchant.getId(), 93);
+			ItemStack normalDiamonds = new ItemStack(Items.DIAMOND, 5);
+			ItemStack namedDiamond = new ItemStack(Items.DIAMOND); namedDiamond.set(DataComponents.CUSTOM_NAME, Component.literal("keep"));
+			ItemStack damagedSword = new ItemStack(Items.DIAMOND_SWORD); damagedSword.setDamageValue(1);
+			ItemStack filledBundle = new ItemStack(Items.BUNDLE); filledBundle.set(DataComponents.BUNDLE_CONTENTS, new BundleContents(java.util.List.of(new ItemStackTemplate(Items.DIAMOND))));
+			player.getInventory().add(normalDiamonds); player.getInventory().add(namedDiamond); player.getInventory().add(damagedSword); player.getInventory().add(filledBundle); player.getInventory().add(new ItemStack(Items.COBBLESTONE, 16));
+			Identifier diamond = BuiltInRegistries.ITEM.getKey(Items.DIAMOND); Identifier cobblestone = BuiltInRegistries.ITEM.getKey(Items.COBBLESTONE);
+			Identifier diamondSword = BuiltInRegistries.ITEM.getKey(Items.DIAMOND_SWORD); Identifier bundle = BuiltInRegistries.ITEM.getKey(Items.BUNDLE);
+			helper.assertTrue(TradeTransactionService.sell(player, 12, 93, diamond, 5) == TradeTransactionService.Result.INVALID_SESSION, "Forged Sell session rejected");
+			helper.assertTrue(TradeTransactionService.sell(player, 11, 94, diamond, 5) == TradeTransactionService.Result.STALE_CATALOG, "Stale Sell request rejected");
+			helper.assertTrue(TradeTransactionService.sell(player, 11, 93, TradeEverything.id("forged"), 1) == TradeTransactionService.Result.INVALID_ITEM, "Unknown Sell item rejected");
+			helper.assertTrue(TradeTransactionService.sell(player, 11, 93, BuiltInRegistries.ITEM.getKey(Items.OAK_LOG), 1) == TradeTransactionService.Result.DISABLED_ITEM, "Disabled Sell item rejected");
+			helper.assertTrue(TradeTransactionService.sell(player, 11, 93, diamond, 0) == TradeTransactionService.Result.INVALID_SELL_QUANTITY, "Zero Sell quantity rejected");
+			helper.assertTrue(TradeTransactionService.sell(player, 11, 93, diamond, -1) == TradeTransactionService.Result.INVALID_SELL_QUANTITY, "Negative Sell quantity rejected");
+			helper.assertTrue(TradeTransactionService.sell(player, 11, 93, diamond, TradeTransactionService.MAX_SELL_QUANTITY + 1) == TradeTransactionService.Result.INVALID_SELL_QUANTITY, "Oversized Sell quantity rejected");
+			helper.assertTrue(TradeTransactionService.sell(player, 11, 93, diamond, 6) == TradeTransactionService.Result.UNSUPPORTED_ITEM_COMPONENTS, "Named stack must not count toward Sell quantity");
+			helper.assertTrue(TradeTransactionService.sell(player, 11, 93, diamondSword, 1) == TradeTransactionService.Result.UNSUPPORTED_ITEM_COMPONENTS, "Damaged equipment must not be sellable");
+			helper.assertTrue(TradeTransactionService.sell(player, 11, 93, bundle, 1) == TradeTransactionService.Result.UNSUPPORTED_ITEM_COMPONENTS, "Bundles with contents must not be sellable");
+			helper.assertTrue(TradeTransactionService.sell(player, 11, 93, diamond, 5) == TradeTransactionService.Result.SUCCESS, "Buy 10 must sell five normal items for 25 Emeralds");
+			helper.assertTrue(count(player, Items.DIAMOND) == 1 && count(player, Items.EMERALD) == 25, "Sell must remove only qualifying stacks and give the exact Buy 10-derived reward");
+			helper.assertTrue(TradeTransactionService.sell(player, 11, 93, cobblestone, 7) == TradeTransactionService.Result.INVALID_SELL_BUNDLE, "Buy 1 Sell requires eight items");
+			helper.assertTrue(TradeTransactionService.sell(player, 11, 93, cobblestone, 9) == TradeTransactionService.Result.INVALID_SELL_BUNDLE, "Sell bundles must not round quantities");
+			helper.assertTrue(TradeNetworking.handleSell(player, new SellRequest(11, 93, cobblestone, 8)) == TradeTransactionService.Result.SUCCESS, "Sell payload dispatch must invoke the authoritative service");
+			helper.assertTrue(TradeTransactionService.sell(player, 11, 93, cobblestone, 8) == TradeTransactionService.Result.SUCCESS, "Second Sell request is independently exact");
+			helper.assertTrue(count(player, Items.COBBLESTONE) == 0 && count(player, Items.EMERALD) == 27, "Two eight-item bundles must give exactly two Emeralds");
+
+			var fullPlayer = (net.minecraft.server.level.ServerPlayer)helper.makeMockServerPlayer(GameType.SURVIVAL);
+			fullPlayer.setPos(merchant.position()); fullPlayer.containerMenu = new TradeEverythingMenu(12, fullPlayer.getInventory(), merchant.getId(), 93);
+			for (int slot = 0; slot < fullPlayer.getInventory().getNonEquipmentItems().size(); slot++) fullPlayer.getInventory().getNonEquipmentItems().set(slot, new ItemStack(Items.COBBLESTONE, 64));
+			helper.assertTrue(TradeTransactionService.sell(fullPlayer, 12, 93, cobblestone, 8) == TradeTransactionService.Result.REWARD_INVENTORY_FULL, "Sell must fail before removal when Emerald reward cannot fit");
+			helper.assertTrue(count(fullPlayer, Items.COBBLESTONE) == 64 * fullPlayer.getInventory().getNonEquipmentItems().size(), "Capacity failure must leave all sold items untouched");
+			helper.succeed();
+		} catch (Exception exception) {
+			throw new RuntimeException(exception);
+		} finally {
+			PriceConfig.load(); TradeCatalog.rebuild();
+			if (directory != null) {
+				try { Files.deleteIfExists(directory.resolve(PriceConfig.FILE_NAME)); Files.deleteIfExists(directory); }
+				catch (Exception ignored) { }
+			}
+		}
+	}
+
 	@GameTest(maxTicks = 60)
-	public void merchantRemainsAnchored(GameTestHelper helper) {
+	public void merchantUsesNormalAiAndRetainsAnchor(GameTestHelper helper) {
 		TradeCatalog.rebuild(); Villager merchant = createMerchant(helper, new BlockPos(2, 1, 2)); BlockPos anchor = ClerkManager.anchor(merchant).orElseThrow();
 		merchant.setDeltaMovement(new Vec3(2, 1, -2)); merchant.snapTo(anchor.getX() + 3.5, anchor.getY(), anchor.getZ() + 3.5, 0, 0);
 		helper.runAfterDelay(40, () -> {
-			helper.assertTrue(merchant.distanceToSqr(anchor.getX() + .5, anchor.getY(), anchor.getZ() + .5) < 0.0001 && merchant.isNoAi() && merchant.getNavigation().isDone(), "Merchant must remain stationary without pathfinding"); helper.succeed();
+			helper.assertTrue(!merchant.isNoAi() && ClerkManager.anchor(merchant).equals(java.util.Optional.of(anchor)), "Merchant must retain normal AI and its persistent anchor"); helper.succeed();
 		});
 	}
 
@@ -193,7 +262,7 @@ public final class TradeEverythingGameTest {
 		snapCenter(ordinary, helper.absolutePos(new BlockPos(7, 1, 5))); helper.getLevel().addFreshEntity(ordinary);
 		Villager summoned = ClerkManager.createMerchant(helper.getLevel(), absolute).orElseThrow();
 		helper.assertTrue(summoned.entityTags().contains(ClerkManager.CLERK_TAG) && summoned.entityTags().contains(ClerkManager.PRIMARY_TAG), "Standalone merchant must use canonical tags");
-		helper.assertTrue(summoned.isNoAi() && ClerkManager.anchor(summoned).equals(java.util.Optional.of(absolute)), "Standalone merchant must persist the requested anchor and remain stationary");
+		helper.assertTrue(!summoned.isNoAi() && ClerkManager.anchor(summoned).equals(java.util.Optional.of(absolute)), "Standalone merchant must persist the requested anchor with normal AI");
 		helper.assertTrue(summoned.getOffers().isEmpty(), "Standalone merchant must use the searchable catalog rather than giant MerchantOffers");
 		helper.assertTrue(ordinary.isAlive() && !ordinary.entityTags().contains(ClerkManager.CLERK_TAG), "Standalone summon must not modify ordinary villagers");
 		helper.succeed();
@@ -208,6 +277,9 @@ public final class TradeEverythingGameTest {
 		BlockPos absolute = helper.absolutePos(relative); ArmorStand marker = EntityTypes.ARMOR_STAND.create(helper.getLevel(), EntitySpawnReason.STRUCTURE);
 		if (marker == null) throw new IllegalStateException("Could not create marker");
 		snapCenter(marker, absolute); marker.addTag(ClerkManager.MARKER_PREFIX + index); helper.getLevel().addFreshEntity(marker); return marker;
+	}
+	private static int count(net.minecraft.server.level.ServerPlayer player, Item item) {
+		return player.getInventory().getNonEquipmentItems().stream().filter(stack -> stack.is(item)).mapToInt(ItemStack::getCount).sum();
 	}
 	private static void snapCenter(Entity entity, BlockPos pos) { entity.snapTo(pos.getX() + .5, pos.getY(), pos.getZ() + .5, 0, 0); }
 }
