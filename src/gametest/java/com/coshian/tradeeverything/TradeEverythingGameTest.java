@@ -12,6 +12,7 @@ import com.coshian.tradeeverything.trade.TradeTransactionService;
 import com.coshian.tradeeverything.world.TradingPostTerrain;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.List;
 import com.mojang.brigadier.CommandDispatcher;
 import com.mojang.brigadier.tree.ArgumentCommandNode;
 import net.fabricmc.fabric.api.gametest.v1.GameTest;
@@ -138,7 +139,21 @@ public final class TradeEverythingGameTest {
 		helper.assertTrue(TradeTransactionService.purchase(player, 7, TradeCatalog.version(), oak.id(), 2) == TradeTransactionService.Result.SUCCESS, "Multi-quantity transaction succeeds");
 		int delivered = player.getInventory().getNonEquipmentItems().stream().filter(stack -> stack.is(Items.OAK_LOG)).mapToInt(ItemStack::getCount).sum();
 		int emeralds = player.getInventory().getNonEquipmentItems().stream().filter(stack -> stack.is(Items.EMERALD)).mapToInt(ItemStack::getCount).sum();
-		helper.assertTrue(delivered == oak.quantity() * 2 && emeralds == 0, "Output and payment must match requested transaction units"); helper.succeed();
+		helper.assertTrue(delivered == oak.quantity() * 2 && emeralds == 0, "Output and payment must match requested transaction units");
+
+		var fullPlayer = (net.minecraft.server.level.ServerPlayer)helper.makeMockServerPlayer(GameType.SURVIVAL);
+		fullPlayer.setPos(merchant.position()); fullPlayer.containerMenu = new TradeEverythingMenu(8, fullPlayer.getInventory(), merchant.getId(), TradeCatalog.version());
+		List<ItemStack> fullInventory = fullPlayer.getInventory().getNonEquipmentItems();
+		for (int slot = 0; slot < fullInventory.size(); slot++) fullInventory.set(slot, new ItemStack(Items.COBBLESTONE, 64));
+		int expensiveQuantity = 129;
+		int payment = oak.price() * expensiveQuantity;
+		fullInventory.set(0, new ItemStack(Items.EMERALD_BLOCK, payment / 9));
+		fullInventory.set(1, new ItemStack(Items.EMERALD, payment % 9));
+		helper.assertTrue(TradeTransactionService.purchase(fullPlayer, 8, TradeCatalog.version(), oak.id(), expensiveQuantity) == TradeTransactionService.Result.INVENTORY_FULL,
+			"Buy capacity failure must be detected on the simulated post-payment inventory");
+		helper.assertTrue(count(fullPlayer, Items.EMERALD_BLOCK) == payment / 9 && count(fullPlayer, Items.EMERALD) == payment % 9 && count(fullPlayer, Items.OAK_LOG) == 0,
+			"Failed Buy must preserve exact payment and deliver no partial output");
+		helper.succeed();
 	}
 
 	@GameTest

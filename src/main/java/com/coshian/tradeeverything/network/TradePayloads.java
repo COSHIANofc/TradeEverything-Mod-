@@ -61,7 +61,12 @@ public final class TradePayloads {
 	public record PurchaseResult(int containerId, TransactionType transactionType, boolean success, String message) implements CustomPacketPayload {
 		public static final Type<PurchaseResult> TYPE = new Type<>(TradeEverything.id("purchase_result"));
 		public static final StreamCodec<RegistryFriendlyByteBuf, PurchaseResult> CODEC = StreamCodec.ofMember(PurchaseResult::write, PurchaseResult::read);
-		private static PurchaseResult read(RegistryFriendlyByteBuf buffer) { return new PurchaseResult(buffer.readContainerId(), TransactionType.values()[buffer.readVarInt()], buffer.readBoolean(), buffer.readUtf(128)); }
+		private static PurchaseResult read(RegistryFriendlyByteBuf buffer) {
+			int containerId = buffer.readContainerId();
+			int operation = buffer.readVarInt();
+			if (operation < 0 || operation >= TransactionType.values().length) throw new IllegalArgumentException("Invalid TradeEverything transaction type " + operation);
+			return new PurchaseResult(containerId, TransactionType.values()[operation], buffer.readBoolean(), buffer.readUtf(128));
+		}
 		private void write(RegistryFriendlyByteBuf buffer) { buffer.writeContainerId(containerId); buffer.writeVarInt(transactionType.ordinal()); buffer.writeBoolean(success); buffer.writeUtf(message, 128); }
 		@Override public Type<PurchaseResult> type() { return TYPE; }
 	}

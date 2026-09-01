@@ -2,11 +2,11 @@
 
 **TradeEverything はサーバーと接続クライアントの両方へ導入する Fabric Mod です。** 双方に Minecraft 26.2、Fabric Loader、Fabric API、同じバージョンの TradeEverything が必要です。外部リソースパックは不要です。
 
-自然生成される**交易所** (`tradeeverything:trading_post`) を追加します。各交易所には固定されたバニラ Villager商人が1人だけ存在し、操作すると検索可能な専用画面が開きます。監査済みの通常Survival入手可能な有効アイテムをすべて販売し、任意アイテムは買い取りません。
+自然生成される**交易所** (`tradeeverything:trading_post`) を追加します。各交易所にはcanonicalなバニラ Villager商人が1人だけ存在し、操作すると検索可能な専用画面が開きます。監査済みの通常Survival入手可能な有効アイテムをすべて売買できます。
 
 ## 必要環境と導入
 
-Minecraft 26.2、Fabric Loader 0.19.3以上の互換安定版、Fabric API 0.158.0+26.2、TradeEverything 0.2.a-dev、Azul Zulu Java 25が必要です。サーバーとクライアント双方の `mods` にFabric APIと `tradeeverything-0.2.a-dev.jar` を配置します。
+Minecraft 26.2、Fabric Loader 0.19.3以上の互換安定版、Fabric API 0.158.0+26.2、TradeEverything 0.4.b-dev、Azul Zulu Java 25が必要です。サーバーとクライアント双方の `mods` にFabric APIと `tradeeverything-0.4.b-dev.jar` を配置します。
 
 ## 自然生成とコマンド
 
@@ -26,7 +26,7 @@ Minecraft 26.2、Fabric Loader 0.19.3以上の互換安定版、Fabric API 0.158
 /tre reload
 ```
 
-`place` は自然生成と同じjigsaw Structureを使い、位置なしでは近くの安全な地表を選択します。`summon` は指定したロード済みブロック座標、または実行者の位置に、追加の固定canonical商人を召喚します。`verify` は登録数、有効数、無効数、重複、価格状態、単一商人、検索UI状態を表示します。`reload` は設定を検証してカタログを再構築し、古い開画面からの購入要求を安全に拒否します。
+`place` は自然生成と同じjigsaw Structureを使い、位置なしでは近くの安全な地表を選択します。`summon` は指定したロード済みブロック座標、または実行者の位置に、追加のcanonical商人を召喚します。`verify` は登録数、有効数、無効数、重複、価格状態、単一商人、検索UI状態を表示します。`reload` は設定を検証してカタログを再構築し、古い開画面からの購入要求を安全に拒否します。
 
 ## 検索カタログと商人
 
@@ -34,9 +34,9 @@ Minecraft 26.2、Fabric Loader 0.19.3以上の互換安定版、Fabric API 0.158
 
 完全カタログは巨大な `MerchantOffers` に保存しません。画面を開いた時だけ上限付きlarge payloadで同期し、そのセッション中はクライアントでキャッシュ・検索します。入力ごとの通信はありません。表示はクライアント言語のアイテム名順、同名時はregistry ID順です。検索は大文字小文字を区別せず、前後空白を除き、部分一致と `minecraft:diamond` のようなID一致に対応します。
 
-購入時にクライアントが送るのはmenu ID、catalog version、選択registry IDだけです。サーバーがセッション、商人と距離、最新カタログ、有効状態、価格、数量、エメラルド通貨、容量を再検証してから支払いと出力を一度だけ処理します。価格や出力を偽装するpacket項目はありません。
+売買時にクライアントが送るのはmenu ID、catalog version、選択registry ID、上限付き数量だけです。サーバーがセッション、商人と距離、最新カタログ、有効状態、価格・報酬、数量、inventory内容、容量を再検証し、transaction全体をatomicにcommitします。価格、報酬、出力、inventory合計を偽装するpacket項目はありません。
 
-商人の `NoAI` と固定座標タグは従来どおり永続化されます。既存worldではpage 0の管理商人をcanonicalへ移行し、他のTradeEverything管理ページだけを退役させます。通常Villagerは変更しません。
+商人は永続的な識別・固定座標タグを保持し、通常時はバニラVillager AIで行動します。TradeEverything画面が開いている間だけ移動を抑制し、最後のセッションが閉じると通常行動へ戻ります。既存worldではpage 0の管理商人をcanonicalへ移行し、他のTradeEverything管理ページだけを退役させます。通常Villagerは変更しません。
 
 ## サーバー設定
 
@@ -80,8 +80,8 @@ Fabric 26.2 公式基準（Loom 1.17、Gradle 9.5.1、Loader 0.19.3、Fabric API
 
 ## バージョニング
 
-現在のバージョンは `0.2.a-dev` です。形式は `MAJOR.MINOR.REVISION-STATE` です。MAJOR更新時はMINORを `1`、REVISIONを `a` に戻します。通常の利用者向け変更は数値MINORを増やしてREVISIONを `a` に戻し、仕様を変えない内部・実行時修正だけが小文字REVISIONを進めます。`-dev`、`-beta`、`-pre` は開発状態を表し、安定版は接尾辞を付けません。例: `0.1.a-dev`、`0.2.a-beta`、`1.1.a`。
+現在のバージョンは `0.4.b-dev` です。形式は `MAJOR.MINOR.REVISION-STATE` です。MAJOR更新時はMINORを `1`、REVISIONを `a` に戻します。通常の利用者向け変更は数値MINORを増やしてREVISIONを `a` に戻し、仕様を変えない内部・実行時修正だけが小文字REVISIONを進めます。`-dev`、`-beta`、`-pre` は開発状態を表し、安定版は接尾辞を付けません。例: `0.1.a-dev`、`0.2.a-beta`、`1.1.a`。
 
 ## ライセンス
 
-Copyright 2026 COSHIANofc. [Apache License 2.0](LICENSE) で提供します。
+Copyright 2026 COSHIAN. [Apache License 2.0](LICENSE) で提供します。

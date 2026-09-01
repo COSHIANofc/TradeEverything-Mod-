@@ -2,11 +2,11 @@
 
 **TradeEverything is a Fabric mod for both the server and connecting clients.** Minecraft 26.2, Fabric Loader, Fabric API, and the same TradeEverything version are required on both sides; no external resource pack is required.
 
-The mod adds a naturally generated Trading Post (`tradeeverything:trading_post`, Japanese: `交易所`). Each post has one stationary vanilla-villager merchant. Interacting with it opens a searchable TradeEverything screen containing every enabled, audited Survival-obtainable vanilla item. Air, command/debug/operator items, spawn eggs, and other items without a legitimate Survival acquisition are excluded.
+The mod adds a naturally generated Trading Post (`tradeeverything:trading_post`, Japanese: `交易所`). Each post has one canonical vanilla-villager merchant. Interacting with it opens a searchable TradeEverything screen containing every enabled, audited Survival-obtainable vanilla item. Air, command/debug/operator items, spawn eggs, and other items without a legitimate Survival acquisition are excluded.
 
 ## Requirements and installation
 
-Minecraft 26.2, Fabric Loader 0.19.3 or a newer compatible stable version, Fabric API 0.158.0+26.2, TradeEverything 0.2.a-dev, and Azul Zulu Java 25 are required. Put Fabric API and `tradeeverything-0.2.a-dev.jar` in both the server and client `mods` directories.
+Minecraft 26.2, Fabric Loader 0.19.3 or a newer compatible stable version, Fabric API 0.158.0+26.2, TradeEverything 0.4.b-dev, and Azul Zulu Java 25 are required. Put Fabric API and `tradeeverything-0.4.b-dev.jar` in both the server and client `mods` directories.
 
 ## Trading Posts and commands
 
@@ -26,7 +26,7 @@ Operator commands require permission level 2:
 /tre reload
 ```
 
-`place` invokes the same jigsaw structure used by natural generation. With no position it chooses a nearby suitable surface. `summon` creates an additional standalone stationary canonical merchant at the source or supplied loaded block position. `verify` reports registered, enabled, disabled and duplicate counts, pricing health, the single-merchant invariant, and searchable-UI status. `reload` validates configuration, rebuilds the catalog, and invalidates stale open purchase sessions safely.
+`place` invokes the same jigsaw structure used by natural generation. With no position it chooses a nearby suitable surface. `summon` creates an additional standalone canonical merchant at the source or supplied loaded block position. `verify` reports registered, enabled, disabled and duplicate counts, pricing health, the single-merchant invariant, and searchable-UI status. `reload` validates configuration, rebuilds the catalog, and invalidates stale open purchase sessions safely.
 
 ## Searchable catalog and merchant
 
@@ -34,9 +34,9 @@ The runtime item registry and the validated server configuration form a centrali
 
 The complete catalog is not stored in `MerchantOffers`. It is sent once when the screen opens using a bounded large-payload codec, cached for that menu session, and filtered locally without sending a packet per keystroke. Results are sorted by the client's localized item name with registry ID as the tie-breaker. Search is case-insensitive, trims whitespace, matches partial localized names, and also matches IDs such as `minecraft:diamond`.
 
-The client sends only menu ID, catalog version, and selected registry ID when buying. The server independently validates the open session, merchant identity and distance, current catalog/version, enabled state, price, quantity, exact emerald-block/emerald payment, and inventory capacity before consuming payment and delivering one output. Client-provided price or output data does not exist in the protocol.
+The client sends only menu ID, catalog version, selected registry ID, and bounded quantity when buying or selling. The server independently validates the open session, merchant identity and distance, current catalog/version, enabled state, price or reward, quantity, inventory contents, and capacity before atomically committing a transaction. Client-provided price, reward, output, or inventory totals do not exist in the protocol.
 
-The merchant retains persistent vanilla scoreboard tags and anchor coordinates, uses `NoAI`, and receives targeted position correction without scanning every villager. Existing page-0 TradeEverything merchants migrate to the canonical role; other legacy TradeEverything page merchants are retired. Ordinary villagers are never selected by proximity alone.
+The merchant retains persistent vanilla scoreboard tags and anchor coordinates and uses normal Villager AI outside active TradeEverything sessions. While its UI is open, navigation and horizontal movement are suppressed; closing the final active session restores normal behavior. Existing page-0 TradeEverything merchants migrate to the canonical role; other legacy TradeEverything page merchants are retired. Ordinary villagers are never selected by proximity alone.
 
 ## Server configuration
 
@@ -77,12 +77,12 @@ java -version
 
 The project follows Fabric's official 26.2 baseline: Loom 1.17, Gradle 9.5.1, Loader 0.19.3, Fabric API 0.158.0+26.2, Java 25, and Mojang's unobfuscated names. `TradingPostTemplateGenerator` is reproducible source for the generated NBT included in the JAR; no copied Minecraft asset is committed.
 
-Automated tests cover search normalization/filtering, registry-ID search, disabled-entry exclusion, catalog uniqueness and value validation, forged/stale/disabled/underfunded purchase rejection, exactly-once delivery, one-marker structure generation, merchant migration/idempotence, persistent anchors, stationary movement, terrain selection, client/common metadata, and payload shape. Exact GUI layout, focus, scrolling feel, tooltips, live packet flow, right-click opening, and natural-generation appearance require in-game verification.
+Automated tests cover search normalization/filtering, registry-ID search, disabled-entry exclusion, catalog uniqueness and value validation, forged/stale/disabled/underfunded purchase rejection, atomic delivery, one-marker structure generation, merchant migration/idempotence, persistent anchors, normal merchant AI, terrain selection, client/common metadata, and payload shape. Exact GUI layout, focus, scrolling feel, tooltips, live packet flow, right-click opening, and natural-generation appearance require in-game verification.
 
 ## Versioning
 
-The current version is `0.2.a-dev`. TradeEverything uses `MAJOR.MINOR.REVISION-STATE`: major changes reset minor to `1` and revision to `a`; normal user-visible changes increment numeric minor and reset revision to `a`; internal/runtime-only fixes advance lowercase revision. `-dev`, `-beta`, and `-pre` identify development states; stable releases omit the suffix. Examples: `0.1.a-dev`, `0.2.a-beta`, `1.1.a`.
+The current version is `0.4.b-dev`. TradeEverything uses `MAJOR.MINOR.REVISION-STATE`: major changes reset minor to `1` and revision to `a`; normal user-visible changes increment numeric minor and reset revision to `a`; internal/runtime-only fixes advance lowercase revision. `-dev`, `-beta`, and `-pre` identify development states; stable releases omit the suffix. Examples: `0.1.a-dev`, `0.2.a-beta`, `1.1.a`.
 
 ## License
 
-Copyright 2026 COSHIANofc. Licensed under the [Apache License 2.0](LICENSE).
+Copyright 2026 COSHIAN. Licensed under the [Apache License 2.0](LICENSE).
