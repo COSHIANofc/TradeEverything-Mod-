@@ -2,6 +2,7 @@ package com.coshian.tradeeverything.mixin;
 
 import com.coshian.tradeeverything.TradeEverything;
 import com.coshian.tradeeverything.world.TradingPostTerrain;
+import com.coshian.tradeeverything.world.TradingPostManualPlacement;
 import java.util.Optional;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Holder;
@@ -38,11 +39,12 @@ public abstract class JigsawPlacementMixin {
 		if (!tradingPost) return;
 		StructurePoolElement element = startPool.value().getRandomTemplate(context.random());
 		if (element == EmptyPoolElement.INSTANCE) { callback.setReturnValue(Optional.empty()); return; }
-		Rotation rotation = Rotation.getRandom(context.random());
+		var manual = TradingPostManualPlacement.active(position);
+		Rotation rotation = manual.isPresent() ? Rotation.NONE : Rotation.getRandom(context.random());
 		BoundingBox initial = element.getBoundingBox(context.structureTemplateManager(), position, rotation);
-		var plan = TradingPostTerrain.select(initial.minX(), initial.maxX(), initial.minZ(), initial.maxZ(),
-			context.heightAccessor().getMinY(), context.heightAccessor().getMaxY(),
-			(type, x, z) -> context.chunkGenerator().getFirstFreeHeight(x, z, type, context.heightAccessor(), context.randomState()));
+		var plan = manual.map(TradingPostManualPlacement.Placement::terrain).or(() -> TradingPostTerrain.select(
+			initial.minX(), initial.maxX(), initial.minZ(), initial.maxZ(), context.heightAccessor().getMinY(), context.heightAccessor().getMaxY(),
+			(type, x, z) -> context.chunkGenerator().getFirstFreeHeight(x, z, type, context.heightAccessor(), context.randomState())));
 		if (plan.isEmpty()) { callback.setReturnValue(Optional.empty()); return; }
 		BlockPos placedAt = new BlockPos(position.getX(), plan.orElseThrow().placementY(), position.getZ());
 		PoolElementStructurePiece piece = new PoolElementStructurePiece(context.structureTemplateManager(), element, placedAt,

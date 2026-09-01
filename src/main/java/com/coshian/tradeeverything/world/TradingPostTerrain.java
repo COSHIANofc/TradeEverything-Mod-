@@ -9,7 +9,7 @@ public final class TradingPostTerrain {
 	public static final int FOUNDATION_DEPTH = 12;
 	public static final int ABOVE_FLOOR_HEIGHT = 9;
 	public static final int TEMPLATE_HEIGHT = FOUNDATION_DEPTH + ABOVE_FLOOR_HEIGHT;
-	public static final int MAX_SLOPE = 8;
+	public static final int MAX_SLOPE = FOUNDATION_DEPTH;
 	private static final int SAMPLE_STEP = 4;
 
 	private TradingPostTerrain() {}
