@@ -12,8 +12,10 @@ import java.nio.file.Path;
 import net.fabricmc.fabric.api.gametest.v1.GameTest;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.registries.BuiltInRegistries;
+import net.minecraft.core.registries.Registries;
 import net.minecraft.gametest.framework.GameTestHelper;
 import net.minecraft.nbt.CompoundTag;
+import net.minecraft.resources.ResourceKey;
 import net.minecraft.util.ProblemReporter;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.EntitySpawnReason;
@@ -48,11 +50,16 @@ public final class TradeEverythingGameTest {
 
 	@GameTest
 	public void templateHasOneVanillaMerchantMarker(GameTestHelper helper) {
+		var structureKey = ResourceKey.create(Registries.STRUCTURE, TradeEverything.id("trading_post"));
+		var poolKey = ResourceKey.create(Registries.TEMPLATE_POOL, TradeEverything.id("trading_post"));
+		helper.assertTrue(helper.getLevel().registryAccess().lookupOrThrow(Registries.STRUCTURE).get(structureKey).isPresent(), "Trading Post structure registry entry must resolve");
+		helper.assertTrue(helper.getLevel().registryAccess().lookupOrThrow(Registries.TEMPLATE_POOL).get(poolKey).isPresent(), "Trading Post start pool must resolve");
 		var template = helper.getLevel().getStructureManager().get(TradeEverything.id("trading_post"));
 		helper.assertTrue(template.isPresent(), "Trading Post template must load");
 		var size = template.orElseThrow().getSize();
 		helper.assertTrue(size.getX() == TradingPostTerrain.FOOTPRINT && size.getY() == TradingPostTerrain.TEMPLATE_HEIGHT && size.getZ() == TradingPostTerrain.FOOTPRINT, "Terrain-aware template dimensions");
 		CompoundTag saved = template.orElseThrow().save(new CompoundTag());
+		helper.assertTrue(!saved.getListOrEmpty("blocks").isEmpty(), "Trading Post template must contain blocks");
 		helper.assertTrue(saved.getListOrEmpty("entities").size() == 1, "New posts must contain one merchant marker");
 		saved.getListOrEmpty("palette").forEach(tag -> tag.asCompound().flatMap(value -> value.getString("Name"))
 			.ifPresent(name -> helper.assertTrue(name.startsWith("minecraft:"), "Every structure block must be vanilla")));
