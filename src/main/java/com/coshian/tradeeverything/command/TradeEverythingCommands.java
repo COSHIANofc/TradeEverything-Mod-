@@ -44,9 +44,18 @@ public final class TradeEverythingCommands {
 		}
 		var registry = source.registryAccess().lookupOrThrow(Registries.STRUCTURE);
 		var holder = registry.get(TRADING_POST).orElseThrow(() -> new IllegalStateException("Trading Post structure is not registered"));
-		int result = PlaceCommand.placeStructure(source, holder, requested);
-		source.sendSuccess(() -> Component.literal(message("Trading Post placed; clerks initialize on the next server tick", "交易所を設置しました。商人は次のサーバーティックで初期化されます")), true);
-		return result;
+		try {
+			int result = PlaceCommand.placeStructure(source, holder, requested);
+			TradeEverything.LOGGER.info("Trading Post placed at {}", requested);
+			source.sendSuccess(() -> Component.literal(message("Trading Post placed; clerks initialize on the next server tick", "交易所を設置しました。商人は次のサーバーティックで初期化されます")), true);
+			return result;
+		} catch (CommandSyntaxException exception) {
+			TradeEverything.LOGGER.warn("Trading Post placement command failed at {}: {}", requested, exception.getMessage());
+			throw exception;
+		} catch (RuntimeException exception) {
+			TradeEverything.LOGGER.error("Unexpected Trading Post placement failure at {}", requested, exception);
+			throw exception;
+		}
 	}
 
 	private static int verify(CommandSourceStack source) {
