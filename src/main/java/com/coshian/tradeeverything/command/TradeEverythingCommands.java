@@ -23,13 +23,30 @@ public final class TradeEverythingCommands {
 	private TradeEverythingCommands() {}
 
 	public static void register() { CommandRegistrationCallback.EVENT.register((dispatcher, registries, environment) -> register(dispatcher)); }
+	public static void registerForTesting(CommandDispatcher<CommandSourceStack> dispatcher) { register(dispatcher); }
 	private static void register(CommandDispatcher<CommandSourceStack> dispatcher) {
-		dispatcher.register(Commands.literal("tradeeverything").requires(Commands.hasPermission(Commands.LEVEL_GAMEMASTERS))
+		dispatcher.register(Commands.literal("tre").requires(Commands.hasPermission(Commands.LEVEL_GAMEMASTERS))
 			.then(Commands.literal("place")
 				.executes(ctx -> placeAtSurface(ctx.getSource()))
 				.then(Commands.argument("pos", BlockPosArgument.blockPos()).executes(ctx -> place(ctx.getSource(), BlockPosArgument.getLoadedBlockPos(ctx, "pos")))))
+			.then(Commands.literal("summon")
+				.executes(ctx -> summon(ctx.getSource(), BlockPos.containing(ctx.getSource().getPosition())))
+				.then(Commands.argument("pos", BlockPosArgument.blockPos()).executes(ctx -> summon(ctx.getSource(), BlockPosArgument.getLoadedBlockPos(ctx, "pos")))))
 			.then(Commands.literal("verify").executes(ctx -> verify(ctx.getSource())))
 			.then(Commands.literal("reload").executes(ctx -> reload(ctx.getSource()))));
+	}
+
+	private static int summon(CommandSourceStack source, BlockPos position) {
+		if (position.getY() < source.getLevel().getMinY() || position.getY() > source.getLevel().getMaxY() || !source.getLevel().hasChunkAt(position)) {
+			source.sendFailure(Component.translatable("command.tradeeverything.summon.invalid_position"));
+			return 0;
+		}
+		if (ClerkManager.createMerchant(source.getLevel(), position).isEmpty()) {
+			source.sendFailure(Component.translatable("command.tradeeverything.summon.failed"));
+			return 0;
+		}
+		source.sendSuccess(() -> Component.translatable("command.tradeeverything.summon.success", position.getX(), position.getY(), position.getZ()), true);
+		return 1;
 	}
 
 	private static int placeAtSurface(CommandSourceStack source) throws CommandSyntaxException {

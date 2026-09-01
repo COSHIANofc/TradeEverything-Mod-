@@ -6,25 +6,27 @@
 
 ## 必要環境と導入
 
-Minecraft 26.2、Fabric Loader 0.19.3以上の互換安定版、Fabric API 0.158.0+26.2、TradeEverything 0.1.0、Azul Zulu Java 25が必要です。サーバーとクライアント双方の `mods` にFabric APIと `tradeeverything-0.1.0.jar` を配置します。
+Minecraft 26.2、Fabric Loader 0.19.3以上の互換安定版、Fabric API 0.158.0+26.2、TradeEverything 0.2.a-dev、Azul Zulu Java 25が必要です。サーバーとクライアント双方の `mods` にFabric APIと `tradeeverything-0.2.a-dev.jar` を配置します。
 
 ## 自然生成とコマンド
 
 交易所は再現可能な生成元を持つバニラ構造テンプレートを使う `minecraft:jigsaw` Structure です。既定 random-spread は間隔 40、分離 12 チャンクで、バニラ村対象のオーバーワールド陸上バイオームに生成されます。海・川専用バイオーム、ネザー、エンドは対象外です。設置前に、回転後の 35×35 フットプリント全体で `WORLD_SURFACE_WG` と `OCEAN_FLOOR_WG` を標本化します。水没地点と傾斜が大きい地点を拒否し、床を最高地表へ合わせ、12 ブロック深の丸石基礎で低い部分を支持するため、地下埋没や浮遊を事後スキャンなしで防ぎます。
 
-バニラブロックだけで市場を構成し、1個の一時的なバニラArmor Standマーカーを冪等にcanonical商人へ置換します。自然生成と `/tradeeverything place` は同じ登録済みjigsaw配置と初期化経路を使います。
+バニラブロックだけで市場を構成し、1個の一時的なバニラArmor Standマーカーを冪等にcanonical商人へ置換します。自然生成と `/tre place` は同じ登録済みjigsaw配置と初期化経路を使います。
 
 権限レベル 2 のコマンド:
 
 ```text
 /locate structure tradeeverything:trading_post
-/tradeeverything place
-/tradeeverything place <x> <y> <z>
-/tradeeverything verify
-/tradeeverything reload
+/tre place
+/tre place <x> <y> <z>
+/tre summon
+/tre summon <x> <y> <z>
+/tre verify
+/tre reload
 ```
 
-`place` は自然生成と同じjigsaw Structureを使います。`verify` は登録数、有効数、無効数、重複、価格状態、単一商人、検索UI状態を表示します。`reload` は設定を検証してカタログを再構築し、古い開画面からの購入要求を安全に拒否します。
+`place` は自然生成と同じjigsaw Structureを使い、位置なしでは近くの安全な地表を選択します。`summon` は指定したロード済みブロック座標、または実行者の位置に、追加の固定canonical商人を召喚します。`verify` は登録数、有効数、無効数、重複、価格状態、単一商人、検索UI状態を表示します。`reload` は設定を検証してカタログを再構築し、古い開画面からの購入要求を安全に拒否します。
 
 ## 検索カタログと商人
 
@@ -59,7 +61,7 @@ Minecraft 26.2、Fabric Loader 0.19.3以上の互換安定版、Fabric API 0.158
 
 `SurvivalEligibility` はこの上書きより先に適用されます。そのため設定で有効化しても、air、command/debug/operatorアイテム、spawn eggなど通常Survivalで入手不能と監査されたアイテムは販売されません。
 
-GUIとアイテム名は各クライアントのMinecraft言語に従い、英語・日本語UIを同梱します。コマンド文言にはサーバー側 `language` を利用できます。`/tradeeverything reload` 後、既に開いていた古い画面は再度開く必要があります。
+GUIとアイテム名は各クライアントのMinecraft言語に従い、英語・日本語UIを同梱します。コマンド文言にはサーバー側 `language` を利用できます。`/tre reload` 後、既に開いていた古い画面は再度開く必要があります。
 
 価格は 1～584 エメラルド相当、出力は 1～最大スタック数です。64 超は第 1 入力のエメラルドブロック（最大 64）と第 2 入力のエメラルド（最大 8）で表現します。不正項目だけを警告して安全な既定値へ戻し、需要インフレはありません。同梱 worldgen は既定 40/12 です。既存ワールドの自然生成間隔変更には、動的レジストリ読込順のためデータパックと再起動が必要です。
 
@@ -75,6 +77,10 @@ export PATH="$JAVA_HOME/bin:$PATH"
 Fabric 26.2 公式基準（Loom 1.17、Gradle 9.5.1、Loader 0.19.3、Fabric API 0.158.0+26.2、Java 25、非難読化名）に従います。`TradingPostTemplateGenerator` が JAR 内 NBT の再現可能なソースで、Minecraft 資産のコピーはコミットしません。
 
 自動テストは検索正規化、ID検索、無効項目排除、カタログ一意性、値検証、偽装・古い・無効・支払不足要求の拒否、出力1回、単一マーカー、商人移行／冪等性、anchor永続化、静止、地形選択、client/common metadata、payload形状を検証します。GUI配置、フォーカス、スクロール感、tooltip、実packet通信、右クリック開画面、自然生成外観はゲーム内確認が必要です。
+
+## バージョニング
+
+現在のバージョンは `0.2.a-dev` です。形式は `MAJOR.MINOR.REVISION-STATE` です。MAJOR更新時はMINORを `1`、REVISIONを `a` に戻します。通常の利用者向け変更は数値MINORを増やしてREVISIONを `a` に戻し、仕様を変えない内部・実行時修正だけが小文字REVISIONを進めます。`-dev`、`-beta`、`-pre` は開発状態を表し、安定版は接尾辞を付けません。例: `0.1.a-dev`、`0.2.a-beta`、`1.1.a`。
 
 ## ライセンス
 

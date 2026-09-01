@@ -1,7 +1,7 @@
 {
   "screen.tradeeverything.title": "TradeEverything 商人",
   "screen.tradeeverything.search": "アイテム検索",
-  "screen.tradeeverything.search_hint": "アイテムを検索...",
+  "screen.tradeeverything.search_placeholder": "検索",
   "screen.tradeeverything.results": "%s 件",
   "screen.tradeeverything.buy": "購入",
   "screen.tradeeverything.price": "%s エメラルド",
@@ -17,5 +17,8 @@
   "screen.tradeeverything.result.disabled_item": "このアイテムは無効です",
   "screen.tradeeverything.result.invalid_entry": "カタログ項目が不正です",
   "screen.tradeeverything.result.insufficient_payment": "エメラルド通貨が不足しています",
-  "screen.tradeeverything.result.inventory_full": "インベントリ容量が不足しています"
+  "screen.tradeeverything.result.inventory_full": "インベントリ容量が不足しています",
+  "command.tradeeverything.summon.success": "TradeEverythingの商人を %s %s %s に召喚しました",
+  "command.tradeeverything.summon.failed": "TradeEverythingの商人を作成できませんでした",
+  "command.tradeeverything.summon.invalid_position": "召喚座標はワールド高度外か、ロードされていません"
 }
