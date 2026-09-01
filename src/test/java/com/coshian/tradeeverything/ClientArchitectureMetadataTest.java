@@ -24,8 +24,10 @@ final class ClientArchitectureMetadataTest {
 		String client = Files.walk(Path.of("src/client/java")).filter(path -> path.toString().endsWith(".java")).map(ClientArchitectureMetadataTest::read).reduce("", String::concat);
 		assertTrue(common.contains("CustomPacketPayload") && common.contains("ServerPlayNetworking"));
 		assertTrue(client.contains("ClientModInitializer") && client.contains("EditBox") && client.contains("ClientPlayNetworking"));
-		assertEquals(List.of("containerId", "version", "itemId"), java.util.Arrays.stream(com.coshian.tradeeverything.network.TradePayloads.PurchaseRequest.class.getRecordComponents()).map(java.lang.reflect.RecordComponent::getName).toList(),
+		assertEquals(List.of("containerId", "version", "itemId", "quantity"), java.util.Arrays.stream(com.coshian.tradeeverything.network.TradePayloads.PurchaseRequest.class.getRecordComponents()).map(java.lang.reflect.RecordComponent::getName).toList(),
 			"Client purchase requests must not contain price or output data");
+		assertEquals(List.of("containerId", "transactionType", "success", "message"), java.util.Arrays.stream(com.coshian.tradeeverything.network.TradePayloads.PurchaseResult.class.getRecordComponents()).map(java.lang.reflect.RecordComponent::getName).toList(),
+			"Transaction responses must carry their operation type independently of the active UI tab");
 	}
 	private static String read(Path path) { try { return Files.readString(path); } catch (Exception exception) { throw new RuntimeException(exception); } }
 }

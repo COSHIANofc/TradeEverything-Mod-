@@ -7,6 +7,7 @@ import com.coshian.tradeeverything.network.TradePayloads.CatalogSync;
 import com.coshian.tradeeverything.network.TradePayloads.PurchaseRequest;
 import com.coshian.tradeeverything.network.TradePayloads.PurchaseResult;
 import com.coshian.tradeeverything.network.TradePayloads.SellRequest;
+import com.coshian.tradeeverything.network.TradePayloads.TransactionType;
 import com.coshian.tradeeverything.trade.TradeTransactionService;
 import java.util.OptionalInt;
 import net.fabricmc.fabric.api.networking.v1.PayloadTypeRegistry;
@@ -26,12 +27,12 @@ public final class TradeNetworking {
 		PayloadTypeRegistry.serverboundPlay().register(SellRequest.TYPE, SellRequest.CODEC);
 		PayloadTypeRegistry.clientboundPlay().register(PurchaseResult.TYPE, PurchaseResult.CODEC);
 		ServerPlayNetworking.registerGlobalReceiver(PurchaseRequest.TYPE, (payload, context) -> {
-			TradeTransactionService.Result result = TradeTransactionService.purchase(context.player(), payload.containerId(), payload.version(), payload.itemId());
-			ServerPlayNetworking.send(context.player(), new PurchaseResult(payload.containerId(), result.success(), result.translationKey()));
+			TradeTransactionService.Result result = TradeTransactionService.purchase(context.player(), payload.containerId(), payload.version(), payload.itemId(), payload.quantity());
+			ServerPlayNetworking.send(context.player(), new PurchaseResult(payload.containerId(), TransactionType.BUY, result.success(), result.success() ? "screen.tradeeverything.result.buy_success" : result.translationKey()));
 		});
 		ServerPlayNetworking.registerGlobalReceiver(SellRequest.TYPE, (payload, context) -> {
 			TradeTransactionService.Result result = handleSell(context.player(), payload);
-			ServerPlayNetworking.send(context.player(), new PurchaseResult(payload.containerId(), result.success(), result.translationKey()));
+			ServerPlayNetworking.send(context.player(), new PurchaseResult(payload.containerId(), TransactionType.SELL, result.success(), result.success() ? "screen.tradeeverything.result.sell_success" : result.translationKey()));
 		});
 	}
 

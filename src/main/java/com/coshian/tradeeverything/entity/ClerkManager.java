@@ -108,7 +108,8 @@ public final class ClerkManager {
 		villager.getOffers().clear();
 		villager.entityTags().removeIf(tag -> tag.startsWith(PAGE_PREFIX) || tag.startsWith(CATEGORY_PREFIX) || tag.startsWith(VERSION_PREFIX));
 		villager.addTag(CLERK_TAG); villager.addTag(PRIMARY_TAG); villager.addTag(VERSION_PREFIX + TradeCatalog.version());
-		villager.setCustomName(Component.literal("TradeEverything Merchant")); villager.setCustomNameVisible(true);
+		// Identity is carried by persistent tags; do not expose a nameplate to players.
+		villager.setCustomName(null); villager.setCustomNameVisible(false);
 		villager.setInvulnerable(PriceConfig.snapshot().protectNpcs()); villager.setItemSlot(net.minecraft.world.entity.EquipmentSlot.HEAD, ItemStack.EMPTY);
 		villager.setNoAi(false);
 	}

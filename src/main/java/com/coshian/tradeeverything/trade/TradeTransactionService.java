@@ -14,26 +14,41 @@ import net.minecraft.world.item.Items;
 
 public final class TradeTransactionService {
 	public static final int MAX_SELL_QUANTITY = 576;
+	public static final int MAX_BUY_QUANTITY = 576;
 	private TradeTransactionService() {}
 
 	public static Result purchase(ServerPlayer player, int containerId, int requestedVersion, Identifier itemId) {
+		return purchase(player, containerId, requestedVersion, itemId, 1);
+	}
+
+	/** Atomically buys transaction units; price and output are recomputed solely on the server. */
+	public static Result purchase(ServerPlayer player, int containerId, int requestedVersion, Identifier itemId, int quantity) {
 		Result session = validateSession(player, containerId, requestedVersion);
 		if (session != null) return session;
+		if (quantity <= 0 || quantity > MAX_BUY_QUANTITY) return Result.INVALID_BUY_QUANTITY;
 		var entry = TradeCatalog.enabled(itemId);
 		if (entry.isEmpty()) return Result.DISABLED_ITEM;
 		TradeCatalog.Entry trade = entry.orElseThrow();
 		if (trade.price() < 1 || trade.quantity() < 1 || trade.quantity() > trade.item().getDefaultMaxStackSize()) return Result.INVALID_CATALOG_ENTRY;
 
-		int blocks = trade.price() / 9; int emeralds = trade.price() % 9;
+		final int totalPrice, totalOutput;
+		try { totalPrice = Math.multiplyExact(trade.price(), quantity); totalOutput = Math.multiplyExact(trade.quantity(), quantity); }
+		catch (ArithmeticException exception) { return Result.ARITHMETIC_OVERFLOW; }
+		int blocks = totalPrice / 9; int emeralds = totalPrice % 9;
 		List<ItemStack> inventory = player.getInventory().getNonEquipmentItems();
 		if (count(inventory, Items.EMERALD_BLOCK) < blocks || count(inventory, Items.EMERALD) < emeralds) return Result.INSUFFICIENT_PAYMENT;
-		ItemStack output = new ItemStack(trade.item(), trade.quantity());
-		if (!canFitAfterPayment(inventory, output, blocks, emeralds)) return Result.INVENTORY_FULL;
+		ItemStack output = new ItemStack(trade.item(), Math.min(totalOutput, trade.item().getDefaultMaxStackSize()));
+		if (!canFitAfterPayment(inventory, output, totalOutput, blocks, emeralds)) return Result.INVENTORY_FULL;
 
 		remove(inventory, Items.EMERALD_BLOCK, blocks); remove(inventory, Items.EMERALD, emeralds);
-		ItemStack delivered = output.copy();
-		player.getInventory().add(delivered);
-		if (!delivered.isEmpty()) player.getInventory().placeItemBackInInventory(delivered);
+		int remaining = totalOutput;
+		while (remaining > 0) {
+			int stackSize = Math.min(remaining, trade.item().getDefaultMaxStackSize());
+			ItemStack delivered = new ItemStack(trade.item(), stackSize);
+			player.getInventory().add(delivered);
+			if (!delivered.isEmpty()) throw new IllegalStateException("validated output could not be inserted");
+			remaining -= stackSize;
+		}
 		player.getInventory().setChanged();
 		player.inventoryMenu.broadcastChanges(); player.containerMenu.broadcastChanges();
 		return Result.SUCCESS;
@@ -80,7 +95,7 @@ public final class TradeTransactionService {
 		return null;
 	}
 
-	static boolean canFitAfterPayment(List<ItemStack> inventory, ItemStack output, int blocks, int emeralds) {
+	static boolean canFitAfterPayment(List<ItemStack> inventory, ItemStack output, int requiredOutput, int blocks, int emeralds) {
 		int remainingBlocks = blocks; int remainingEmeralds = emeralds; int capacity = 0;
 		for (ItemStack stack : inventory) {
 			int after = stack.getCount();
@@ -88,7 +103,7 @@ public final class TradeTransactionService {
 			if (stack.is(Items.EMERALD)) { int used = Math.min(after, remainingEmeralds); after -= used; remainingEmeralds -= used; }
 			if (after == 0) capacity += output.getMaxStackSize();
 			else if (ItemStack.isSameItemSameComponents(stack, output)) capacity += Math.max(0, output.getMaxStackSize() - after);
-			if (capacity >= output.getCount()) return true;
+			if (capacity >= requiredOutput) return true;
 		}
 		return false;
 	}
@@ -131,6 +146,7 @@ public final class TradeTransactionService {
 	public enum Result {
 		SUCCESS("success"), INVALID_SESSION("invalid_session"), STALE_CATALOG("stale_catalog"), INVALID_MERCHANT("invalid_merchant"),
 		DISABLED_ITEM("disabled_item"), INVALID_CATALOG_ENTRY("invalid_entry"), INSUFFICIENT_PAYMENT("insufficient_payment"), INVENTORY_FULL("inventory_full"),
+		INVALID_BUY_QUANTITY("invalid_buy_quantity"),
 		INVALID_ITEM("invalid_item"), INVALID_SELL_QUANTITY("invalid_sell_quantity"), INVALID_SELL_BUNDLE("invalid_sell_bundle"),
 		INSUFFICIENT_SELLABLE_ITEMS("insufficient_sellable_items"), UNSUPPORTED_ITEM_COMPONENTS("unsupported_item_components"),
 		REWARD_INVENTORY_FULL("reward_inventory_full"), ARITHMETIC_OVERFLOW("arithmetic_overflow");
