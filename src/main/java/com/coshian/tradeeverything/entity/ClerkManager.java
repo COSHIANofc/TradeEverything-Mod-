@@ -2,6 +2,7 @@ package com.coshian.tradeeverything.entity;
 
 import com.coshian.tradeeverything.catalog.TradeCatalog;
 import com.coshian.tradeeverything.network.TradeNetworking;
+import com.coshian.tradeeverything.menu.TradeEverythingMenu;
 import com.coshian.tradeeverything.price.PriceConfig;
 import java.util.Collections;
 import java.util.IdentityHashMap;
@@ -9,8 +10,8 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.WeakHashMap;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerEntityEvents;
-import net.fabricmc.fabric.api.event.lifecycle.v1.ServerTickEvents;
 import net.fabricmc.fabric.api.event.player.UseEntityCallback;
+import net.fabricmc.fabric.api.event.lifecycle.v1.ServerTickEvents;
 import net.minecraft.core.BlockPos;
 import net.minecraft.network.chat.Component;
 import net.minecraft.server.MinecraftServer;
@@ -24,9 +25,9 @@ import net.minecraft.world.entity.EntityTypes;
 import net.minecraft.world.entity.decoration.ArmorStand;
 import net.minecraft.world.entity.npc.villager.Villager;
 import net.minecraft.world.entity.npc.villager.VillagerProfession;
+import net.minecraft.world.entity.npc.villager.VillagerType;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.phys.AABB;
-import net.minecraft.world.phys.Vec3;
 
 public final class ClerkManager {
 	public static final String CLERK_TAG = "tradeeverything.clerk";
@@ -43,11 +44,19 @@ public final class ClerkManager {
 	public static void registerEvents() {
 		ServerEntityEvents.ENTITY_LOAD.register(ClerkManager::onEntityLoad);
 		ServerEntityEvents.ENTITY_UNLOAD.register((entity, level) -> { if (entity instanceof Villager villager) tracked(level).remove(villager); });
-		ServerTickEvents.END_LEVEL_TICK.register(ClerkManager::tickLevel);
 		UseEntityCallback.EVENT.register((player, level, hand, entity, hit) -> {
 			if (hand != InteractionHand.MAIN_HAND || !(entity instanceof Villager villager) || !villager.entityTags().contains(CLERK_TAG)) return InteractionResult.PASS;
 			if (player instanceof ServerPlayer serverPlayer && TradeNetworking.open(serverPlayer, villager)) return InteractionResult.SUCCESS_SERVER;
 			return level.isClientSide() ? InteractionResult.PASS : InteractionResult.FAIL;
+		});
+		ServerTickEvents.END_SERVER_TICK.register(server -> {
+			for (ServerPlayer player : server.getPlayerList().getPlayers()) if (player.containerMenu instanceof TradeEverythingMenu menu) {
+				Entity entity = player.level().getEntity(menu.merchantId());
+				if (entity instanceof Villager villager && villager.isAlive() && villager.entityTags().contains(CLERK_TAG)) {
+					villager.getNavigation().stop();
+					villager.setDeltaMovement(0, villager.getDeltaMovement().y, 0);
+				}
+			}
 		});
 	}
 
@@ -57,13 +66,6 @@ public final class ClerkManager {
 			Optional<Integer> legacyPage = pageIndex(villager);
 			if (!villager.entityTags().contains(PRIMARY_TAG) && legacyPage.isPresent() && legacyPage.get() != 0) { villager.discard(); return; }
 			tracked(level).add(villager); configure(villager);
-		}
-	}
-
-	private static void tickLevel(ServerLevel level) {
-		for (Villager villager : Set.copyOf(tracked(level))) {
-			if (villager.isRemoved() || !villager.entityTags().contains(CLERK_TAG)) { tracked(level).remove(villager); continue; }
-			ensureStationary(villager);
 		}
 	}
 
@@ -91,7 +93,7 @@ public final class ClerkManager {
 		villager.snapTo(pos.getX() + 0.5, pos.getY(), pos.getZ() + 0.5, 0, 0);
 		villager.addTag(CLERK_TAG); setAnchor(villager, pos);
 		villager.setPersistenceRequired(); villager.setCanPickUpLoot(false); villager.setAge(0);
-		villager.setVillagerData(villager.getVillagerData().withProfession(level.registryAccess(), VillagerProfession.NITWIT).withLevel(5));
+		villager.setVillagerData(villager.getVillagerData().withType(level.registryAccess(), VillagerType.SWAMP).withProfession(level.registryAccess(), VillagerProfession.CLERIC).withLevel(99));
 		configure(villager);
 		level.addFreshEntityWithPassengers(villager);
 		tracked(level).add(villager);
@@ -108,14 +110,7 @@ public final class ClerkManager {
 		villager.addTag(CLERK_TAG); villager.addTag(PRIMARY_TAG); villager.addTag(VERSION_PREFIX + TradeCatalog.version());
 		villager.setCustomName(Component.literal("TradeEverything Merchant")); villager.setCustomNameVisible(true);
 		villager.setInvulnerable(PriceConfig.snapshot().protectNpcs()); villager.setItemSlot(net.minecraft.world.entity.EquipmentSlot.HEAD, ItemStack.EMPTY);
-		ensureStationary(villager);
-	}
-
-	public static void ensureStationary(Villager villager) {
-		villager.setNoAi(true); villager.setDeltaMovement(Vec3.ZERO);
-		BlockPos anchor = anchor(villager).orElseGet(() -> { BlockPos current = villager.blockPosition(); setAnchor(villager, current); return current; });
-		double x = anchor.getX() + 0.5; double y = anchor.getY(); double z = anchor.getZ() + 0.5;
-		if (villager.distanceToSqr(x, y, z) > 0.0001) villager.snapTo(x, y, z, villager.getYRot(), villager.getXRot());
+		villager.setNoAi(false);
 	}
 
 	public static Optional<Integer> pageIndex(Entity entity) { return parseIntTag(entity, PAGE_PREFIX); }

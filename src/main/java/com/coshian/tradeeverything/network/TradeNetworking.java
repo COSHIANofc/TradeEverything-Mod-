@@ -6,6 +6,7 @@ import com.coshian.tradeeverything.network.TradePayloads.CatalogEntryData;
 import com.coshian.tradeeverything.network.TradePayloads.CatalogSync;
 import com.coshian.tradeeverything.network.TradePayloads.PurchaseRequest;
 import com.coshian.tradeeverything.network.TradePayloads.PurchaseResult;
+import com.coshian.tradeeverything.network.TradePayloads.SellRequest;
 import com.coshian.tradeeverything.trade.TradeTransactionService;
 import java.util.OptionalInt;
 import net.fabricmc.fabric.api.networking.v1.PayloadTypeRegistry;
@@ -22,11 +23,21 @@ public final class TradeNetworking {
 	public static void registerCommon() {
 		PayloadTypeRegistry.clientboundPlay().registerLarge(CatalogSync.TYPE, CatalogSync.CODEC, MAX_CATALOG_PACKET_BYTES);
 		PayloadTypeRegistry.serverboundPlay().register(PurchaseRequest.TYPE, PurchaseRequest.CODEC);
+		PayloadTypeRegistry.serverboundPlay().register(SellRequest.TYPE, SellRequest.CODEC);
 		PayloadTypeRegistry.clientboundPlay().register(PurchaseResult.TYPE, PurchaseResult.CODEC);
 		ServerPlayNetworking.registerGlobalReceiver(PurchaseRequest.TYPE, (payload, context) -> {
 			TradeTransactionService.Result result = TradeTransactionService.purchase(context.player(), payload.containerId(), payload.version(), payload.itemId());
 			ServerPlayNetworking.send(context.player(), new PurchaseResult(payload.containerId(), result.success(), result.translationKey()));
 		});
+		ServerPlayNetworking.registerGlobalReceiver(SellRequest.TYPE, (payload, context) -> {
+			TradeTransactionService.Result result = handleSell(context.player(), payload);
+			ServerPlayNetworking.send(context.player(), new PurchaseResult(payload.containerId(), result.success(), result.translationKey()));
+		});
+	}
+
+	/** Shared thin dispatch seam for the server receiver and GameTest coverage. */
+	public static TradeTransactionService.Result handleSell(ServerPlayer player, SellRequest payload) {
+		return TradeTransactionService.sell(player, payload.containerId(), payload.version(), payload.itemId(), payload.quantity());
 	}
 
 	public static boolean open(ServerPlayer player, Villager merchant) {

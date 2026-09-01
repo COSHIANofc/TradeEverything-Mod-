@@ -27,4 +27,4 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: tradeeverything
-          path: build/libs/tradeeverything-0.2.a-dev.jar
+          path: build/libs/tradeeverything-0.3.b-dev.jar
