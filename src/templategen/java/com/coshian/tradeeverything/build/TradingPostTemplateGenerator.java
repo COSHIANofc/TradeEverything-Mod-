@@ -14,7 +14,10 @@ import net.minecraft.nbt.StringTag;
 
 /** Reproducible source for the vanilla-only Trading Post structure template. */
 public final class TradingPostTemplateGenerator {
+	// Kept in sync with TradingPostTerrain and asserted by GameTests without coupling the build-time source set to main classes.
 	private static final int SIZE = 35;
+	private static final int FLOOR = 12;
+	private static final int HEIGHT = 21;
 	private static final Map<String, Integer> PALETTE = new LinkedHashMap<>();
 	private static final ListTag BLOCKS = new ListTag();
 
@@ -25,7 +28,7 @@ public final class TradingPostTemplateGenerator {
 		buildFloor();
 		buildMarket();
 		CompoundTag root = new CompoundTag();
-		root.put("size", ints(SIZE, 9, SIZE));
+		root.put("size", ints(SIZE, HEIGHT, SIZE));
 		root.put("palette", palette());
 		root.put("blocks", BLOCKS);
 		root.put("entities", markers());
@@ -36,8 +39,9 @@ public final class TradingPostTemplateGenerator {
 
 	private static void buildFloor() {
 		for (int x = 0; x < SIZE; x++) for (int z = 0; z < SIZE; z++) {
+			for (int y = 0; y < FLOOR; y++) block(x, y, z, "minecraft:cobblestone");
 			boolean path = x == 16 || x == 17 || x == 18 || z == 16 || z == 17 || z == 18;
-			block(x, 0, z, path ? "minecraft:stone_bricks" : "minecraft:oak_planks");
+			block(x, FLOOR, z, path ? "minecraft:stone_bricks" : "minecraft:oak_planks");
 		}
 	}
 
@@ -45,27 +49,27 @@ public final class TradingPostTemplateGenerator {
 		for (int row = 0; row < 8; row++) for (int column = 0; column < 8; column++) {
 			int x = 2 + column * 4;
 			int z = 2 + row * 4;
-			block(x + 1, 1, z, "minecraft:barrel");
-			block(x + 1, 2, z, "minecraft:oak_slab[type=top,waterlogged=false]");
-			block(x - 1, 1, z - 1, "minecraft:oak_fence");
-			block(x - 1, 2, z - 1, "minecraft:lantern[hanging=false,waterlogged=false]");
+			block(x + 1, FLOOR + 1, z, "minecraft:barrel");
+			block(x + 1, FLOOR + 2, z, "minecraft:oak_slab[type=top,waterlogged=false]");
+			block(x - 1, FLOOR + 1, z - 1, "minecraft:oak_fence");
+			block(x - 1, FLOOR + 2, z - 1, "minecraft:lantern[hanging=false,waterlogged=false]");
 		}
-		for (int x = 14; x <= 20; x++) for (int z = 14; z <= 20; z++) block(x, 1, z, "minecraft:smooth_stone");
-		block(17, 2, 17, "minecraft:bell[attachment=floor,facing=north,powered=false]");
+		for (int x = 14; x <= 20; x++) for (int z = 14; z <= 20; z++) block(x, FLOOR + 1, z, "minecraft:smooth_stone");
+		block(17, FLOOR + 2, 17, "minecraft:bell[attachment=floor,facing=north,powered=false]");
 		for (int[] p : new int[][] {{14,14}, {20,14}, {14,20}, {20,20}}) {
-			for (int y = 2; y <= 5; y++) block(p[0], y, p[1], "minecraft:oak_log[axis=y]");
+			for (int y = FLOOR + 2; y <= FLOOR + 5; y++) block(p[0], y, p[1], "minecraft:oak_log[axis=y]");
 		}
-		for (int x = 14; x <= 20; x++) for (int z = 14; z <= 20; z++) block(x, 6, z, "minecraft:red_wool");
-		for (int x = 0; x < SIZE; x++) { block(x, 1, 0, "minecraft:oak_fence"); block(x, 1, SIZE - 1, "minecraft:oak_fence"); }
-		for (int z = 1; z < SIZE - 1; z++) { block(0, 1, z, "minecraft:oak_fence"); block(SIZE - 1, 1, z, "minecraft:oak_fence"); }
-		block(17, 1, 0, "minecraft:air"); block(17, 1, SIZE - 1, "minecraft:air");
+		for (int x = 14; x <= 20; x++) for (int z = 14; z <= 20; z++) block(x, FLOOR + 6, z, "minecraft:red_wool");
+		for (int x = 0; x < SIZE; x++) { block(x, FLOOR + 1, 0, "minecraft:oak_fence"); block(x, FLOOR + 1, SIZE - 1, "minecraft:oak_fence"); }
+		for (int z = 1; z < SIZE - 1; z++) { block(0, FLOOR + 1, z, "minecraft:oak_fence"); block(SIZE - 1, FLOOR + 1, z, "minecraft:oak_fence"); }
+		block(17, FLOOR + 1, 0, "minecraft:air"); block(17, FLOOR + 1, SIZE - 1, "minecraft:air");
 	}
 
 	private static ListTag markers() {
 		ListTag entities = new ListTag();
-		for (int index = 0; index < 64; index++) {
-			int x = 2 + (index % 8) * 4;
-			int z = 2 + (index / 8) * 4;
+		for (int index = 0; index < 1; index++) {
+			int x = 17;
+			int z = 10;
 			CompoundTag nbt = new CompoundTag();
 			nbt.putString("id", "minecraft:armor_stand");
 			nbt.putBoolean("Invisible", true);
@@ -74,8 +78,8 @@ public final class TradingPostTemplateGenerator {
 			nbt.putBoolean("NoGravity", true);
 			ListTag tags = new ListTag(); tags.add(StringTag.valueOf("tradeeverything.marker." + index)); nbt.put("Tags", tags);
 			CompoundTag entity = new CompoundTag();
-			entity.put("pos", doubles(x + 0.5, 1.0, z + 0.5));
-			entity.put("blockPos", ints(x, 1, z));
+			entity.put("pos", doubles(x + 0.5, FLOOR + 1.0, z + 0.5));
+			entity.put("blockPos", ints(x, FLOOR + 1, z));
 			entity.put("nbt", nbt);
 			entities.add(entity);
 		}
