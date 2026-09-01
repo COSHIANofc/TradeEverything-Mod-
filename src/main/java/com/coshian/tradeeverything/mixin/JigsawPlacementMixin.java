@@ -37,28 +37,18 @@ public abstract class JigsawPlacementMixin {
 		boolean tradingPost = startPool.unwrapKey().map(key -> key.identifier().equals(TradeEverything.id("trading_post"))).orElse(false);
 		if (!tradingPost) return;
 		StructurePoolElement element = startPool.value().getRandomTemplate(context.random());
-		if (element == EmptyPoolElement.INSTANCE) {
-			TradeEverything.LOGGER.warn("Trading Post placement rejected at {}: start pool selected an empty element", position);
-			callback.setReturnValue(Optional.empty());
-			return;
-		}
+		if (element == EmptyPoolElement.INSTANCE) { callback.setReturnValue(Optional.empty()); return; }
 		Rotation rotation = Rotation.getRandom(context.random());
 		BoundingBox initial = element.getBoundingBox(context.structureTemplateManager(), position, rotation);
-		var selection = TradingPostTerrain.analyze(initial.minX(), initial.maxX(), initial.minZ(), initial.maxZ(),
+		var plan = TradingPostTerrain.select(initial.minX(), initial.maxX(), initial.minZ(), initial.maxZ(),
 			context.heightAccessor().getMinY(), context.heightAccessor().getMaxY(),
 			(type, x, z) -> context.chunkGenerator().getFirstFreeHeight(x, z, type, context.heightAccessor(), context.randomState()));
-		if (selection.plan().isEmpty()) {
-			var rejection = selection.rejection().orElseThrow();
-			TradeEverything.LOGGER.warn("Trading Post placement rejected at {}: {} ({})", position, rejection.reason(), rejection.detail());
-			callback.setReturnValue(Optional.empty());
-			return;
-		}
-		var plan = selection.plan().orElseThrow();
-		BlockPos placedAt = new BlockPos(position.getX(), plan.placementY(), position.getZ());
+		if (plan.isEmpty()) { callback.setReturnValue(Optional.empty()); return; }
+		BlockPos placedAt = new BlockPos(position.getX(), plan.orElseThrow().placementY(), position.getZ());
 		PoolElementStructurePiece piece = new PoolElementStructurePiece(context.structureTemplateManager(), element, placedAt,
 			element.getGroundLevelDelta(), rotation, element.getBoundingBox(context.structureTemplateManager(), placedAt, rotation), liquids);
 		BoundingBox box = piece.getBoundingBox();
 		int centerX = (box.minX() + box.maxX()) / 2; int centerZ = (box.minZ() + box.maxZ()) / 2;
-		callback.setReturnValue(Optional.of(new Structure.GenerationStub(new BlockPos(centerX, plan.floorY(), centerZ), builder -> builder.addPiece(piece))));
+		callback.setReturnValue(Optional.of(new Structure.GenerationStub(new BlockPos(centerX, plan.orElseThrow().floorY(), centerZ), builder -> builder.addPiece(piece))));
 	}
 }
