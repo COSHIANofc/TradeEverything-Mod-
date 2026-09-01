@@ -2,6 +2,10 @@
 
 ## [Unreleased]
 
+- Set the active development version to `0.4.b-dev`.
+- Made Buy and Sell inventory mutations atomic through copy, simulation, and commit.
+- Fixed BUY/SELL mode cache invalidation and reduced Sell refresh work to one inventory aggregation plus one catalog intersection.
+- Updated visible author branding to COSHIAN while retaining the working repository URL.
 - Set the active development version to `0.2.a-dev`.
 - Fixed focused catalog-search keyboard routing and added localized search placeholders.
 - Renamed the administrative command root from `/tradeeverything` to `/tre`.

@@ -2,6 +2,7 @@ package com.coshian.tradeeverything.menu;
 
 import com.coshian.tradeeverything.TradeEverything;
 import com.coshian.tradeeverything.network.TradePayloads.CatalogEntryData;
+import com.coshian.tradeeverything.network.TradePayloads.TransactionType;
 import java.util.List;
 import net.minecraft.core.Registry;
 import net.minecraft.core.registries.BuiltInRegistries;
@@ -20,6 +21,8 @@ public final class TradeEverythingMenu extends AbstractContainerMenu {
 	private int catalogVersion;
 	private List<CatalogEntryData> catalog = List.of();
 	private String status = "";
+	private TransactionType statusType;
+	private long resultRevision;
 
 	private TradeEverythingMenu(int containerId, Inventory inventory) { this(containerId, inventory, -1, 0); }
 	public TradeEverythingMenu(int containerId, Inventory inventory, int merchantId, int catalogVersion) {
@@ -37,12 +40,14 @@ public final class TradeEverythingMenu extends AbstractContainerMenu {
 	public int catalogVersion() { return catalogVersion; }
 	public List<CatalogEntryData> catalog() { return catalog; }
 	public String status() { return status; }
+	public TransactionType statusType() { return statusType; }
+	public long resultRevision() { return resultRevision; }
 	public void acceptCatalog(int merchantId, int catalogVersion, List<CatalogEntryData> catalog) {
 		this.merchantId = merchantId;
 		this.catalogVersion = catalogVersion;
 		this.catalog = List.copyOf(catalog);
 	}
-	public void setStatus(String status) { this.status = status; }
+	public void acceptResult(TransactionType type, String status) { this.statusType = type; this.status = status; resultRevision++; }
 
 	@Override public boolean stillValid(Player player) {
 		if (player.level().isClientSide()) return true;

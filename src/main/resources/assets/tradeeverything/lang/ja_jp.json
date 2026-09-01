@@ -11,6 +11,9 @@
   "screen.tradeeverything.affordable": "購入可能",
   "screen.tradeeverything.unaffordable": "通貨不足",
   "screen.tradeeverything.result.success": "購入しました",
+  "screen.tradeeverything.result.buy_success": "購入しました",
+  "screen.tradeeverything.result.sell_success": "売却しました",
+  "screen.tradeeverything.result.invalid_buy_quantity": "購入数量が不正です",
   "screen.tradeeverything.result.invalid_session": "取引セッションが閉じています",
   "screen.tradeeverything.result.stale_catalog": "カタログが更新されました。商人を開き直してください",
   "screen.tradeeverything.result.invalid_merchant": "商人を利用できないか、遠すぎます",
@@ -29,6 +32,7 @@
   "screen.tradeeverything.available": "所持数: %s",
   "screen.tradeeverything.sell_offer": "%s個 → エメラルド%s個",
   "screen.tradeeverything.receive": "受取額: エメラルド%s個",
+  "screen.tradeeverything.total_price": "合計: %s",
   "command.tradeeverything.summon.success": "TradeEverythingの商人を %s %s %s に召喚しました",
   "command.tradeeverything.summon.failed": "TradeEverythingの商人を作成できませんでした",
   "command.tradeeverything.summon.invalid_position": "召喚座標はワールド高度外か、ロードされていません"

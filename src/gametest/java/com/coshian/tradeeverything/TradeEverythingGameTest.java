@@ -12,6 +12,7 @@ import com.coshian.tradeeverything.trade.TradeTransactionService;
 import com.coshian.tradeeverything.world.TradingPostTerrain;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.List;
 import com.mojang.brigadier.CommandDispatcher;
 import com.mojang.brigadier.tree.ArgumentCommandNode;
 import net.fabricmc.fabric.api.gametest.v1.GameTest;
@@ -100,6 +101,7 @@ public final class TradeEverythingGameTest {
 		helper.assertTrue(merchants.size() == 1 && merchant.entityTags().contains(ClerkManager.PRIMARY_TAG), "Repeated initialization must retain one primary merchant");
 		helper.assertTrue(merchant.getOffers().isEmpty(), "Complete catalog must not be stored as MerchantOffers");
 		helper.assertTrue(!merchant.isNoAi() && ClerkManager.anchor(merchant).isPresent(), "Merchant must retain normal villager AI and its anchor");
+		helper.assertTrue(merchant.getCustomName() == null && !merchant.isCustomNameVisible(), "Merchant identity must not create a visible nameplate");
 		TagValueOutput output = TagValueOutput.createWithContext(ProblemReporter.DISCARDING, helper.getLevel().registryAccess()); merchant.save(output);
 		Entity loaded = EntityType.loadEntityRecursive(output.buildResult(), helper.getLevel(), new net.minecraft.world.entity.EntitySpawnRequest(EntitySpawnReason.LOAD, false), entity -> entity);
 		helper.assertTrue(loaded instanceof Villager restored && !restored.isNoAi() && restored.entityTags().contains(ClerkManager.PRIMARY_TAG)
@@ -127,14 +129,31 @@ public final class TradeEverythingGameTest {
 		player.setPos(merchant.position());
 		TradeEverythingMenu menu = new TradeEverythingMenu(7, player.getInventory(), merchant.getId(), TradeCatalog.version()); player.containerMenu = menu;
 		var oak = TradeCatalog.enabled(BuiltInRegistries.ITEM.getKey(Items.OAK_LOG)).orElseThrow();
+		helper.assertTrue(TradeTransactionService.purchase(player, 7, TradeCatalog.version(), oak.id(), 0) == TradeTransactionService.Result.INVALID_BUY_QUANTITY, "Zero Buy quantity rejected");
+		helper.assertTrue(TradeTransactionService.purchase(player, 7, TradeCatalog.version(), oak.id(), TradeTransactionService.MAX_BUY_QUANTITY + 1) == TradeTransactionService.Result.INVALID_BUY_QUANTITY, "Oversized Buy quantity rejected");
 		helper.assertTrue(TradeTransactionService.purchase(player, 8, TradeCatalog.version(), oak.id()) == TradeTransactionService.Result.INVALID_SESSION, "Forged session rejected");
 		helper.assertTrue(TradeTransactionService.purchase(player, 7, TradeCatalog.version() + 1, oak.id()) == TradeTransactionService.Result.STALE_CATALOG, "Stale request rejected");
 		helper.assertTrue(TradeTransactionService.purchase(player, 7, TradeCatalog.version(), BuiltInRegistries.ITEM.getKey(Items.BARRIER)) == TradeTransactionService.Result.DISABLED_ITEM, "Disabled item rejected");
 		helper.assertTrue(TradeTransactionService.purchase(player, 7, TradeCatalog.version(), oak.id()) == TradeTransactionService.Result.INSUFFICIENT_PAYMENT, "Insufficient payment rejected");
-		player.getInventory().add(new ItemStack(Items.EMERALD, oak.price()));
-		helper.assertTrue(TradeTransactionService.purchase(player, 7, TradeCatalog.version(), oak.id()) == TradeTransactionService.Result.SUCCESS, "Valid transaction succeeds");
+		player.getInventory().add(new ItemStack(Items.EMERALD, oak.price() * 2));
+		helper.assertTrue(TradeTransactionService.purchase(player, 7, TradeCatalog.version(), oak.id(), 2) == TradeTransactionService.Result.SUCCESS, "Multi-quantity transaction succeeds");
 		int delivered = player.getInventory().getNonEquipmentItems().stream().filter(stack -> stack.is(Items.OAK_LOG)).mapToInt(ItemStack::getCount).sum();
-		helper.assertTrue(delivered == oak.quantity(), "Output must be delivered exactly once"); helper.succeed();
+		int emeralds = player.getInventory().getNonEquipmentItems().stream().filter(stack -> stack.is(Items.EMERALD)).mapToInt(ItemStack::getCount).sum();
+		helper.assertTrue(delivered == oak.quantity() * 2 && emeralds == 0, "Output and payment must match requested transaction units");
+
+		var fullPlayer = (net.minecraft.server.level.ServerPlayer)helper.makeMockServerPlayer(GameType.SURVIVAL);
+		fullPlayer.setPos(merchant.position()); fullPlayer.containerMenu = new TradeEverythingMenu(8, fullPlayer.getInventory(), merchant.getId(), TradeCatalog.version());
+		List<ItemStack> fullInventory = fullPlayer.getInventory().getNonEquipmentItems();
+		for (int slot = 0; slot < fullInventory.size(); slot++) fullInventory.set(slot, new ItemStack(Items.COBBLESTONE, 64));
+		int expensiveQuantity = 129;
+		int payment = oak.price() * expensiveQuantity;
+		fullInventory.set(0, new ItemStack(Items.EMERALD_BLOCK, payment / 9));
+		fullInventory.set(1, new ItemStack(Items.EMERALD, payment % 9));
+		helper.assertTrue(TradeTransactionService.purchase(fullPlayer, 8, TradeCatalog.version(), oak.id(), expensiveQuantity) == TradeTransactionService.Result.INVENTORY_FULL,
+			"Buy capacity failure must be detected on the simulated post-payment inventory");
+		helper.assertTrue(count(fullPlayer, Items.EMERALD_BLOCK) == payment / 9 && count(fullPlayer, Items.EMERALD) == payment % 9 && count(fullPlayer, Items.OAK_LOG) == 0,
+			"Failed Buy must preserve exact payment and deliver no partial output");
+		helper.succeed();
 	}
 
 	@GameTest

@@ -16,7 +16,8 @@ public final class TradeEverythingClient implements ClientModInitializer {
 				menu.acceptCatalog(payload.merchantId(), payload.version(), payload.entries());
 		}));
 		ClientPlayNetworking.registerGlobalReceiver(PurchaseResult.TYPE, (payload, context) -> context.client().execute(() -> {
-			if (context.player().containerMenu instanceof TradeEverythingMenu menu && menu.containerId == payload.containerId()) menu.setStatus(payload.message());
+			if (context.player().containerMenu instanceof TradeEverythingMenu menu && menu.containerId == payload.containerId())
+				menu.acceptResult(payload.transactionType(), payload.message());
 		}));
 	}
 }

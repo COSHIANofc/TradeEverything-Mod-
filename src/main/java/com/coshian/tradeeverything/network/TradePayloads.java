@@ -38,11 +38,11 @@ public final class TradePayloads {
 		@Override public Type<CatalogSync> type() { return TYPE; }
 	}
 
-	public record PurchaseRequest(int containerId, int version, Identifier itemId) implements CustomPacketPayload {
+	public record PurchaseRequest(int containerId, int version, Identifier itemId, int quantity) implements CustomPacketPayload {
 		public static final Type<PurchaseRequest> TYPE = new Type<>(TradeEverything.id("purchase"));
 		public static final StreamCodec<RegistryFriendlyByteBuf, PurchaseRequest> CODEC = StreamCodec.ofMember(PurchaseRequest::write, PurchaseRequest::read);
-		private static PurchaseRequest read(RegistryFriendlyByteBuf buffer) { return new PurchaseRequest(buffer.readContainerId(), buffer.readVarInt(), buffer.readIdentifier()); }
-		private void write(RegistryFriendlyByteBuf buffer) { buffer.writeContainerId(containerId); buffer.writeVarInt(version); buffer.writeIdentifier(itemId); }
+		private static PurchaseRequest read(RegistryFriendlyByteBuf buffer) { return new PurchaseRequest(buffer.readContainerId(), buffer.readVarInt(), buffer.readIdentifier(), buffer.readVarInt()); }
+		private void write(RegistryFriendlyByteBuf buffer) { buffer.writeContainerId(containerId); buffer.writeVarInt(version); buffer.writeIdentifier(itemId); buffer.writeVarInt(quantity); }
 		@Override public Type<PurchaseRequest> type() { return TYPE; }
 	}
 
@@ -55,11 +55,19 @@ public final class TradePayloads {
 		@Override public Type<SellRequest> type() { return TYPE; }
 	}
 
-	public record PurchaseResult(int containerId, boolean success, String message) implements CustomPacketPayload {
+	public enum TransactionType { BUY, SELL }
+
+	/** The operation is part of the response so delayed packets cannot be labelled from the active tab. */
+	public record PurchaseResult(int containerId, TransactionType transactionType, boolean success, String message) implements CustomPacketPayload {
 		public static final Type<PurchaseResult> TYPE = new Type<>(TradeEverything.id("purchase_result"));
 		public static final StreamCodec<RegistryFriendlyByteBuf, PurchaseResult> CODEC = StreamCodec.ofMember(PurchaseResult::write, PurchaseResult::read);
-		private static PurchaseResult read(RegistryFriendlyByteBuf buffer) { return new PurchaseResult(buffer.readContainerId(), buffer.readBoolean(), buffer.readUtf(128)); }
-		private void write(RegistryFriendlyByteBuf buffer) { buffer.writeContainerId(containerId); buffer.writeBoolean(success); buffer.writeUtf(message, 128); }
+		private static PurchaseResult read(RegistryFriendlyByteBuf buffer) {
+			int containerId = buffer.readContainerId();
+			int operation = buffer.readVarInt();
+			if (operation < 0 || operation >= TransactionType.values().length) throw new IllegalArgumentException("Invalid TradeEverything transaction type " + operation);
+			return new PurchaseResult(containerId, TransactionType.values()[operation], buffer.readBoolean(), buffer.readUtf(128));
+		}
+		private void write(RegistryFriendlyByteBuf buffer) { buffer.writeContainerId(containerId); buffer.writeVarInt(transactionType.ordinal()); buffer.writeBoolean(success); buffer.writeUtf(message, 128); }
 		@Override public Type<PurchaseResult> type() { return TYPE; }
 	}
 }
