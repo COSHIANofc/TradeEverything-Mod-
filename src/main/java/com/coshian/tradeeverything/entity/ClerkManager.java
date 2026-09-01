@@ -2,6 +2,7 @@ package com.coshian.tradeeverything.entity;
 
 import com.coshian.tradeeverything.catalog.TradeCatalog;
 import com.coshian.tradeeverything.network.TradeNetworking;
+import com.coshian.tradeeverything.menu.TradeEverythingMenu;
 import com.coshian.tradeeverything.price.PriceConfig;
 import java.util.Collections;
 import java.util.IdentityHashMap;
@@ -10,6 +11,7 @@ import java.util.Set;
 import java.util.WeakHashMap;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerEntityEvents;
 import net.fabricmc.fabric.api.event.player.UseEntityCallback;
+import net.fabricmc.fabric.api.event.lifecycle.v1.ServerTickEvents;
 import net.minecraft.core.BlockPos;
 import net.minecraft.network.chat.Component;
 import net.minecraft.server.MinecraftServer;
@@ -46,6 +48,15 @@ public final class ClerkManager {
 			if (hand != InteractionHand.MAIN_HAND || !(entity instanceof Villager villager) || !villager.entityTags().contains(CLERK_TAG)) return InteractionResult.PASS;
 			if (player instanceof ServerPlayer serverPlayer && TradeNetworking.open(serverPlayer, villager)) return InteractionResult.SUCCESS_SERVER;
 			return level.isClientSide() ? InteractionResult.PASS : InteractionResult.FAIL;
+		});
+		ServerTickEvents.END_SERVER_TICK.register(server -> {
+			for (ServerPlayer player : server.getPlayerList().getPlayers()) if (player.containerMenu instanceof TradeEverythingMenu menu) {
+				Entity entity = player.level().getEntity(menu.merchantId());
+				if (entity instanceof Villager villager && villager.isAlive() && villager.entityTags().contains(CLERK_TAG)) {
+					villager.getNavigation().stop();
+					villager.setDeltaMovement(0, villager.getDeltaMovement().y, 0);
+				}
+			}
 		});
 	}
 

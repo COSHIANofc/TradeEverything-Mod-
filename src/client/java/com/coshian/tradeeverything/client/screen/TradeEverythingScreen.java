@@ -23,7 +23,7 @@ import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
 
 public final class TradeEverythingScreen extends AbstractContainerScreen<TradeEverythingMenu> {
-	private static final int WIDTH = 300, HEIGHT = 220, ROW_HEIGHT = 24, VISIBLE_ROWS = 5;
+	private static final int WIDTH = 300, HEIGHT = 220, ROW_HEIGHT = 24, VISIBLE_ROWS = 4, HEADER_SEARCH_Y = 43, LIST_Y = 76, DETAIL_ROW = 14;
 	private EditBox search;
 	private Button buy, buyMode, sellMode, minus, plus;
 	private List<ClientTradeEntry> all = List.of(), filtered = List.of();
@@ -39,7 +39,7 @@ public final class TradeEverythingScreen extends AbstractContainerScreen<TradeEv
 
 	@Override protected void init() {
 		super.init();
-		search = new EditBox(font, leftPos + 10, topPos + 22, 280, 20, Component.translatable("screen.tradeeverything.search"));
+		search = new EditBox(font, leftPos + 10, topPos + HEADER_SEARCH_Y, 280, 20, Component.translatable("screen.tradeeverything.search"));
 		search.setHint(Component.translatable("screen.tradeeverything.search_placeholder")); search.setMaxLength(128); search.setResponder(this::filter);
 		addRenderableWidget(search);
 		buyMode = Button.builder(Component.translatable("screen.tradeeverything.buy"), b -> setMode(TradeMode.BUY)).bounds(leftPos + 205, topPos + 22, 42, 18).build();
@@ -50,7 +50,7 @@ public final class TradeEverythingScreen extends AbstractContainerScreen<TradeEv
 		addRenderableWidget(buyMode); addRenderableWidget(sellMode); addRenderableWidget(minus); addRenderableWidget(plus); addRenderableWidget(buy); setInitialFocus(search); rebuildIfNeeded();
 	}
 
-	@Override protected void containerTick() { rebuildIfNeeded(); if (mode == TradeMode.SELL && inventoryFingerprint != fingerprint()) rebuildIfNeeded(); updateBuyState(); }
+	@Override protected void containerTick() { if (mode == TradeMode.SELL && inventoryFingerprint != fingerprint()) { catalogIdentity = List.of(); rebuildIfNeeded(); } else rebuildIfNeeded(); updateBuyState(); }
 
 	private void rebuildIfNeeded() {
 		String selectedLanguage = minecraft.getLanguageManager().getSelected();
@@ -112,10 +112,10 @@ public final class TradeEverythingScreen extends AbstractContainerScreen<TradeEv
 	@Override public void extractContents(GuiGraphicsExtractor graphics, int mouseX, int mouseY, float partialTick) {
 		super.extractContents(graphics, mouseX, mouseY, partialTick);
 		graphics.text(font, title, leftPos + 10, topPos + 7, 0xFFFFFFFF, false);
-		graphics.text(font, Component.translatable("screen.tradeeverything.results", filtered.size()), leftPos + 10, topPos + 46, 0xFFB0B0B0, false);
+		graphics.text(font, Component.translatable("screen.tradeeverything.results", filtered.size()), leftPos + 10, topPos + 66, 0xFFB0B0B0, false);
 		int first = Math.min(scroll, Math.max(0, filtered.size() - VISIBLE_ROWS));
 		for (int row = 0; row < VISIBLE_ROWS && first + row < filtered.size(); row++) {
-			ClientTradeEntry entry = filtered.get(first + row); int y = topPos + 60 + row * ROW_HEIGHT;
+			ClientTradeEntry entry = filtered.get(first + row); int y = topPos + LIST_Y + row * ROW_HEIGHT;
 			if (entry == selected) graphics.fill(leftPos + 8, y, leftPos + 198, y + ROW_HEIGHT - 2, 0x805A7FA8);
 			else if (inside(mouseX, mouseY, leftPos + 8, y, 190, ROW_HEIGHT - 2)) graphics.fill(leftPos + 8, y, leftPos + 198, y + ROW_HEIGHT - 2, 0x40404040);
 			graphics.item(entry.stack(), leftPos + 11, y + 3);
@@ -124,13 +124,13 @@ public final class TradeEverythingScreen extends AbstractContainerScreen<TradeEv
 			graphics.text(font, "×" + (mode == TradeMode.BUY ? entry.data().quantity() : entry.stack().getCount()), leftPos + 168, y + 8, 0xFFFFFFFF, false);
 			if (inside(mouseX, mouseY, leftPos + 8, y, 190, ROW_HEIGHT - 2)) graphics.setTooltipForNextFrame(font, entry.stack(), mouseX, mouseY);
 		}
-		graphics.fill(leftPos + 203, topPos + 60, leftPos + 292, topPos + 172, 0x40202020);
+		graphics.fill(leftPos + 203, topPos + LIST_Y, leftPos + 292, topPos + 174, 0x40202020);
 		if (selected != null) {
-			graphics.item(selected.stack(), leftPos + 239, topPos + 70);
-			graphics.centeredText(font, Component.literal(font.plainSubstrByWidth(selected.localizedName(), 82)), leftPos + 247, topPos + 92, 0xFFFFFFFF);
-			graphics.centeredText(font, Component.literal(font.plainSubstrByWidth(priceText(selected).getString(), 82)), leftPos + 247, topPos + 112, 0xFFFFD060);
-			graphics.centeredText(font, Component.translatable("screen.tradeeverything.quantity", mode == TradeMode.BUY ? selected.data().quantity() : sellQuantity), leftPos + 247, topPos + 125, 0xFFFFFFFF);
-			if (mode == TradeMode.SELL) { var offer = SellPricing.sellOfferFor(selected.data().price()); int reward = sellQuantity / offer.itemQuantity() * offer.emeraldReward(); graphics.centeredText(font, Component.translatable("screen.tradeeverything.sell_offer", offer.itemQuantity(), offer.emeraldReward()), leftPos + 247, topPos + 138, 0xFFFFD060); graphics.centeredText(font, Component.translatable("screen.tradeeverything.receive", reward), leftPos + 247, topPos + 150, 0xFF55FF55); }
+			graphics.item(selected.stack(), leftPos + 239, topPos + LIST_Y + 8);
+			int detail = topPos + LIST_Y + 30;
+			graphics.centeredText(font, Component.literal(font.plainSubstrByWidth(selected.localizedName(), 82)), leftPos + 247, detail, 0xFFFFFFFF);
+			if (mode == TradeMode.BUY) { graphics.centeredText(font, Component.literal(font.plainSubstrByWidth(priceText(selected).getString(), 82)), leftPos + 247, detail + DETAIL_ROW, 0xFFFFD060); graphics.centeredText(font, Component.translatable("screen.tradeeverything.quantity", selected.data().quantity()), leftPos + 247, detail + DETAIL_ROW * 2, 0xFFFFFFFF); }
+			else { var offer = SellPricing.sellOfferFor(selected.data().price()); int reward = sellQuantity / offer.itemQuantity() * offer.emeraldReward(); graphics.centeredText(font, Component.translatable("screen.tradeeverything.available", selected.stack().getCount()), leftPos + 247, detail + DETAIL_ROW, 0xFFFFFFFF); graphics.centeredText(font, Component.translatable("screen.tradeeverything.quantity", sellQuantity), leftPos + 247, detail + DETAIL_ROW * 2, 0xFFFFFFFF); graphics.centeredText(font, Component.translatable("screen.tradeeverything.sell_offer", offer.itemQuantity(), offer.emeraldReward()), leftPos + 247, detail + DETAIL_ROW * 3, 0xFFFFD060); graphics.centeredText(font, Component.translatable("screen.tradeeverything.receive", reward), leftPos + 247, detail + DETAIL_ROW * 4, 0xFF55FF55); }
 			graphics.centeredText(font, Component.translatable(canAfford(selected) ? "screen.tradeeverything.affordable" : "screen.tradeeverything.unaffordable"), leftPos + 247, topPos + 145, canAfford(selected) ? 0xFF55FF55 : 0xFFFF5555);
 		}
 		if (!menu.status().isEmpty()) {
@@ -155,7 +155,7 @@ public final class TradeEverythingScreen extends AbstractContainerScreen<TradeEv
 		if (inside(event.x(), event.y(), leftPos + 205, topPos + 22, 42, 18)) { setMode(TradeMode.BUY); return true; }
 		if (inside(event.x(), event.y(), leftPos + 248, topPos + 22, 42, 18)) { setMode(TradeMode.SELL); return true; }
 		for (int row = 0; row < VISIBLE_ROWS; row++) {
-			int index = scroll + row, y = topPos + 60 + row * ROW_HEIGHT;
+			int index = scroll + row, y = topPos + LIST_Y + row * ROW_HEIGHT;
 			if (index < filtered.size() && inside(event.x(), event.y(), leftPos + 8, y, 190, ROW_HEIGHT - 2)) { selected = filtered.get(index); updateBuyState(); return true; }
 		}
 		return super.mouseClicked(event, doubleClick);
