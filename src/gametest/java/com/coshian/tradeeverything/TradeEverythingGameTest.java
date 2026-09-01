@@ -1,93 +1,176 @@
 package com.coshian.tradeeverything;
 
-import com.coshian.tradeeverything.catalog.Catalog;
-import com.coshian.tradeeverything.catalog.Category;
+import com.coshian.tradeeverything.catalog.SurvivalEligibility;
+import com.coshian.tradeeverything.catalog.TradeCatalog;
 import com.coshian.tradeeverything.entity.ClerkManager;
+import com.coshian.tradeeverything.menu.TradeEverythingMenu;
 import com.coshian.tradeeverything.price.PriceConfig;
+import com.coshian.tradeeverything.trade.TradeTransactionService;
+import com.coshian.tradeeverything.world.TradingPostTerrain;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import net.fabricmc.fabric.api.gametest.v1.GameTest;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.gametest.framework.GameTestHelper;
 import net.minecraft.nbt.CompoundTag;
-import net.minecraft.resources.Identifier;
 import net.minecraft.util.ProblemReporter;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.EntitySpawnReason;
-import net.minecraft.world.entity.EntityTypes;
 import net.minecraft.world.entity.EntityType;
+import net.minecraft.world.entity.EntityTypes;
 import net.minecraft.world.entity.decoration.ArmorStand;
 import net.minecraft.world.entity.npc.villager.Villager;
+import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.item.Items;
+import net.minecraft.world.level.GameType;
 import net.minecraft.world.level.storage.TagValueOutput;
+import net.minecraft.world.phys.AABB;
+import net.minecraft.world.phys.Vec3;
 
 public final class TradeEverythingGameTest {
 	@GameTest
-	public void catalogAndOfferInvariant(GameTestHelper helper) {
-		Catalog.rebuild();
-		Catalog.Audit audit = Catalog.audit();
-		helper.assertTrue(audit.eligible() > 0, "Vanilla registry must contain eligible items");
-		helper.assertTrue(audit.valid(), "Every eligible item must occur exactly once; air and invalid offers are forbidden");
-		helper.assertTrue(Catalog.pages().stream().allMatch(page -> page.items().size() <= PriceConfig.snapshot().maxOffers()), "No clerk exceeds the configured offer limit");
-		helper.assertTrue(Catalog.pages().stream().map(p -> p.category()).distinct().count() == Category.values().length, "All eight categories must have pages");
-		Catalog.pages().forEach(page -> page.items().forEach(item -> {
-			var offer = ClerkManager.createOffer(item);
-			ItemStack result = offer.getResult();
-			helper.assertTrue(vanilla(result) && !result.isEmpty(), "Offer output must be a non-empty vanilla stack");
-			helper.assertTrue(vanilla(offer.getItemCostA().itemStack()) && offer.getItemCostA().count() > 0, "Primary input must be a positive vanilla stack");
-			offer.getItemCostB().ifPresent(cost -> helper.assertTrue(vanilla(cost.itemStack()) && cost.count() > 0, "Secondary input must be a positive vanilla stack"));
-		}));
+	public void catalogIntegrityAndEligibility(GameTestHelper helper) {
+		TradeCatalog.rebuild(); TradeCatalog.Audit audit = TradeCatalog.audit();
+		for (Item item : new Item[] {Items.AIR, Items.BARRIER, Items.COMMAND_BLOCK, Items.STRUCTURE_BLOCK, Items.DEBUG_STICK, Items.PLAYER_HEAD, Items.VILLAGER_SPAWN_EGG})
+			helper.assertTrue(!SurvivalEligibility.isEligible(item), BuiltInRegistries.ITEM.getKey(item) + " must be excluded");
+		for (Item item : new Item[] {Items.OAK_LOG, Items.DIAMOND, Items.ELYTRA, Items.NETHERITE_INGOT})
+			helper.assertTrue(SurvivalEligibility.isEligible(item), BuiltInRegistries.ITEM.getKey(item) + " must be eligible");
+		helper.assertTrue(audit.enabled() > 1000 && audit.disabled() > 0 && audit.valid(), "Enabled catalog IDs and values must be unique and valid");
+		helper.assertTrue(TradeCatalog.enabled(TradeEverything.id("forged")).isEmpty(), "Unknown IDs must be rejected");
+		helper.assertTrue(TradeCatalog.enabled(BuiltInRegistries.ITEM.getKey(Items.BARRIER)).isEmpty(), "Disabled items must not be purchasable");
+		helper.assertTrue(!com.coshian.tradeeverything.price.PriceConfig.validValues(Items.STONE, 0, 1)
+			&& !com.coshian.tradeeverything.price.PriceConfig.validValues(Items.STONE, 1, 0)
+			&& !com.coshian.tradeeverything.price.PriceConfig.validValues(Items.STONE, 1, 65), "Invalid prices and quantities must be rejected");
 		helper.succeed();
 	}
 
 	@GameTest
-	public void noSynchronizedCustomRegistries(GameTestHelper helper) {
-		helper.assertTrue(BuiltInRegistries.ITEM.keySet().stream().noneMatch(TradeEverythingGameTest::modded), "No custom items may be registered");
-		helper.assertTrue(BuiltInRegistries.BLOCK.keySet().stream().noneMatch(TradeEverythingGameTest::modded), "No custom blocks may be registered");
-		helper.assertTrue(BuiltInRegistries.ENTITY_TYPE.keySet().stream().noneMatch(TradeEverythingGameTest::modded), "No custom entities may be registered");
-		helper.assertTrue(BuiltInRegistries.MENU.keySet().stream().noneMatch(TradeEverythingGameTest::modded), "No custom menus may be registered");
-		helper.succeed();
-	}
-
-	@GameTest
-	public void structureTemplateUsesVanillaContent(GameTestHelper helper) {
+	public void templateHasOneVanillaMerchantMarker(GameTestHelper helper) {
 		var template = helper.getLevel().getStructureManager().get(TradeEverything.id("trading_post"));
 		helper.assertTrue(template.isPresent(), "Trading Post template must load");
-		helper.assertTrue(template.orElseThrow().getSize().getX() == 35 && template.orElseThrow().getSize().getZ() == 35, "Trading Post template must have its generated footprint");
+		var size = template.orElseThrow().getSize();
+		helper.assertTrue(size.getX() == TradingPostTerrain.FOOTPRINT && size.getY() == TradingPostTerrain.TEMPLATE_HEIGHT && size.getZ() == TradingPostTerrain.FOOTPRINT, "Terrain-aware template dimensions");
 		CompoundTag saved = template.orElseThrow().save(new CompoundTag());
+		helper.assertTrue(saved.getListOrEmpty("entities").size() == 1, "New posts must contain one merchant marker");
 		saved.getListOrEmpty("palette").forEach(tag -> tag.asCompound().flatMap(value -> value.getString("Name"))
 			.ifPresent(name -> helper.assertTrue(name.startsWith("minecraft:"), "Every structure block must be vanilla")));
-		saved.getListOrEmpty("entities").forEach(tag -> tag.asCompound().flatMap(value -> value.getCompound("nbt"))
-			.flatMap(value -> value.getString("id")).ifPresent(id -> helper.assertTrue(id.startsWith("minecraft:"), "Every template entity must be vanilla")));
+		saved.getListOrEmpty("entities").forEach(tag -> tag.asCompound().flatMap(value -> value.getCompound("nbt")).flatMap(value -> value.getString("id"))
+			.ifPresent(id -> helper.assertTrue(id.equals("minecraft:armor_stand"), "Marker entity must be vanilla")));
 		helper.succeed();
 	}
 
 	@GameTest
-	public void clerkIdentitySerializesAndInitializationIsIdempotent(GameTestHelper helper) {
-		Catalog.rebuild();
-		BlockPos absolute = helper.absolutePos(new BlockPos(1, 1, 1));
-		ArmorStand first = EntityTypes.ARMOR_STAND.create(helper.getLevel(), EntitySpawnReason.STRUCTURE);
-		helper.assertTrue(first != null, "Marker must be creatable");
-		first.snapTo(absolute.getX() + .5, absolute.getY(), absolute.getZ() + .5, 0, 0);
-		first.addTag(ClerkManager.MARKER_PREFIX + "0");
-		helper.getLevel().addFreshEntity(first);
-		ClerkManager.initializeMarker(helper.getLevel(), first, 0);
-		ArmorStand second = EntityTypes.ARMOR_STAND.create(helper.getLevel(), EntitySpawnReason.STRUCTURE);
-		second.snapTo(absolute.getX() + .5, absolute.getY(), absolute.getZ() + .5, 0, 0);
-		second.addTag(ClerkManager.MARKER_PREFIX + "0");
-		helper.getLevel().addFreshEntity(second);
-		ClerkManager.initializeMarker(helper.getLevel(), second, 0);
-		var clerks = helper.getLevel().getEntities(EntityTypes.VILLAGER, new net.minecraft.world.phys.AABB(absolute).inflate(2), v -> v.entityTags().contains(ClerkManager.CLERK_TAG));
-		helper.assertTrue(clerks.size() == 1, "Repeated marker initialization must create exactly one clerk");
-		Villager clerk = clerks.getFirst();
-		TagValueOutput output = TagValueOutput.createWithContext(ProblemReporter.DISCARDING, helper.getLevel().registryAccess());
-		clerk.save(output);
+	public void oneMerchantInitializationIsIdempotentAndSerializable(GameTestHelper helper) {
+		TradeCatalog.rebuild(); BlockPos relative = new BlockPos(1, 1, 1);
+		Villager merchant = createMerchant(helper, relative);
+		ClerkManager.initializeMarker(helper.getLevel(), createMarker(helper, relative, 0), 0);
+		var merchants = helper.getLevel().getEntities(EntityTypes.VILLAGER, new AABB(merchant.blockPosition()).inflate(4), v -> v.entityTags().contains(ClerkManager.CLERK_TAG));
+		helper.assertTrue(merchants.size() == 1 && merchant.entityTags().contains(ClerkManager.PRIMARY_TAG), "Repeated initialization must retain one primary merchant");
+		helper.assertTrue(merchant.getOffers().isEmpty(), "Complete catalog must not be stored as MerchantOffers");
+		helper.assertTrue(merchant.isNoAi() && ClerkManager.anchor(merchant).isPresent(), "Merchant must be anchored");
+		TagValueOutput output = TagValueOutput.createWithContext(ProblemReporter.DISCARDING, helper.getLevel().registryAccess()); merchant.save(output);
 		Entity loaded = EntityType.loadEntityRecursive(output.buildResult(), helper.getLevel(), new net.minecraft.world.entity.EntitySpawnRequest(EntitySpawnReason.LOAD, false), entity -> entity);
-		helper.assertTrue(loaded instanceof Villager && loaded.entityTags().contains(ClerkManager.CLERK_TAG) && ClerkManager.pageIndex(loaded).orElse(-1) == 0,
-			"Vanilla serialization must preserve clerk and page tags");
-		loaded.discard();
-		helper.succeed();
+		helper.assertTrue(loaded instanceof Villager restored && restored.isNoAi() && restored.entityTags().contains(ClerkManager.PRIMARY_TAG)
+			&& ClerkManager.anchor(restored).equals(ClerkManager.anchor(merchant)), "Primary identity and anchor must serialize");
+		loaded.discard(); helper.succeed();
 	}
 
-	private static boolean vanilla(ItemStack stack) { Identifier id = BuiltInRegistries.ITEM.getKey(stack.getItem()); return id != null && id.getNamespace().equals("minecraft"); }
-	private static boolean modded(Identifier id) { return id.getNamespace().equals(TradeEverything.MOD_ID); }
+	@GameTest
+	public void legacyPagesMigrateWithoutTouchingNormalVillagers(GameTestHelper helper) {
+		Villager ordinary = EntityTypes.VILLAGER.create(helper.getLevel(), EntitySpawnReason.COMMAND);
+		Villager obsolete = EntityTypes.VILLAGER.create(helper.getLevel(), EntitySpawnReason.COMMAND);
+		helper.assertTrue(ordinary != null && obsolete != null, "Villagers must be creatable");
+		snapCenter(ordinary, helper.absolutePos(new BlockPos(1, 1, 1))); helper.getLevel().addFreshEntity(ordinary);
+		snapCenter(obsolete, helper.absolutePos(new BlockPos(2, 1, 1))); obsolete.addTag(ClerkManager.CLERK_TAG); obsolete.addTag(ClerkManager.PAGE_PREFIX + 3); helper.getLevel().addFreshEntity(obsolete);
+		helper.runAfterDelay(1, () -> {
+			helper.assertTrue(ordinary.isAlive() && !ordinary.entityTags().contains(ClerkManager.CLERK_TAG), "Ordinary villagers must remain untouched");
+			helper.assertTrue(obsolete.isRemoved(), "Obsolete managed page merchants must be retired"); helper.succeed();
+		});
+	}
+
+	@GameTest
+	public void serverTradeValidationAndExactlyOnceDelivery(GameTestHelper helper) {
+		TradeCatalog.rebuild(); Villager merchant = createMerchant(helper, new BlockPos(2, 1, 2));
+		var player = (net.minecraft.server.level.ServerPlayer)helper.makeMockServerPlayer(GameType.SURVIVAL);
+		player.setPos(merchant.position());
+		TradeEverythingMenu menu = new TradeEverythingMenu(7, player.getInventory(), merchant.getId(), TradeCatalog.version()); player.containerMenu = menu;
+		var oak = TradeCatalog.enabled(BuiltInRegistries.ITEM.getKey(Items.OAK_LOG)).orElseThrow();
+		helper.assertTrue(TradeTransactionService.purchase(player, 8, TradeCatalog.version(), oak.id()) == TradeTransactionService.Result.INVALID_SESSION, "Forged session rejected");
+		helper.assertTrue(TradeTransactionService.purchase(player, 7, TradeCatalog.version() + 1, oak.id()) == TradeTransactionService.Result.STALE_CATALOG, "Stale request rejected");
+		helper.assertTrue(TradeTransactionService.purchase(player, 7, TradeCatalog.version(), BuiltInRegistries.ITEM.getKey(Items.BARRIER)) == TradeTransactionService.Result.DISABLED_ITEM, "Disabled item rejected");
+		helper.assertTrue(TradeTransactionService.purchase(player, 7, TradeCatalog.version(), oak.id()) == TradeTransactionService.Result.INSUFFICIENT_PAYMENT, "Insufficient payment rejected");
+		player.getInventory().add(new ItemStack(Items.EMERALD, oak.price()));
+		helper.assertTrue(TradeTransactionService.purchase(player, 7, TradeCatalog.version(), oak.id()) == TradeTransactionService.Result.SUCCESS, "Valid transaction succeeds");
+		int delivered = player.getInventory().getNonEquipmentItems().stream().filter(stack -> stack.is(Items.OAK_LOG)).mapToInt(ItemStack::getCount).sum();
+		helper.assertTrue(delivered == oak.quantity(), "Output must be delivered exactly once"); helper.succeed();
+	}
+
+	@GameTest
+	public void configuredCatalogControlsServerPurchaseAndCannotEnableTechnicalItems(GameTestHelper helper) {
+		Path directory = null;
+		try {
+			directory = Files.createTempDirectory("tradeeverything-config-test-");
+			Path config = directory.resolve(PriceConfig.FILE_NAME);
+			Files.writeString(config, """
+				{
+				  "catalog_version": 92,
+				  "items": {
+				    "minecraft:cobblestone": {"enabled": true, "emeralds": 1, "output": 16},
+				    "minecraft:diamond": {"enabled": false},
+				    "minecraft:barrier": {"enabled": true, "emeralds": 1, "output": 1}
+				  }
+				}
+				""");
+			PriceConfig.Status status = PriceConfig.load(config, false);
+			TradeCatalog.rebuild();
+			helper.assertTrue(status.healthy(), "Valid item configuration must load cleanly");
+			helper.assertTrue(TradeCatalog.enabled(BuiltInRegistries.ITEM.getKey(Items.DIAMOND)).isEmpty(), "Configured disabled items must stay disabled");
+			helper.assertTrue(TradeCatalog.enabled(BuiltInRegistries.ITEM.getKey(Items.BARRIER)).isEmpty(), "Survival eligibility must override configured enablement");
+
+			var cobblestone = TradeCatalog.enabled(BuiltInRegistries.ITEM.getKey(Items.COBBLESTONE)).orElseThrow();
+			helper.assertTrue(cobblestone.price() == 1 && cobblestone.quantity() == 16, "Catalog must consume configured price and output");
+			Villager merchant = createMerchant(helper, new BlockPos(2, 1, 2));
+			var player = (net.minecraft.server.level.ServerPlayer)helper.makeMockServerPlayer(GameType.SURVIVAL);
+			player.setPos(merchant.position());
+			player.containerMenu = new TradeEverythingMenu(9, player.getInventory(), merchant.getId(), TradeCatalog.version());
+			player.getInventory().add(new ItemStack(Items.EMERALD));
+			helper.assertTrue(TradeTransactionService.purchase(player, 9, 92, cobblestone.id()) == TradeTransactionService.Result.SUCCESS,
+				"Server transaction must use configured catalog values");
+			int delivered = player.getInventory().getNonEquipmentItems().stream().filter(stack -> stack.is(Items.COBBLESTONE)).mapToInt(ItemStack::getCount).sum();
+			helper.assertTrue(delivered == 16, "Configured output must be delivered exactly once");
+			helper.succeed();
+		} catch (Exception exception) {
+			throw new RuntimeException(exception);
+		} finally {
+			PriceConfig.load();
+			TradeCatalog.rebuild();
+			if (directory != null) {
+				try { Files.deleteIfExists(directory.resolve(PriceConfig.FILE_NAME)); Files.deleteIfExists(directory); }
+				catch (Exception ignored) { }
+			}
+		}
+	}
+
+	@GameTest(maxTicks = 60)
+	public void merchantRemainsAnchored(GameTestHelper helper) {
+		TradeCatalog.rebuild(); Villager merchant = createMerchant(helper, new BlockPos(2, 1, 2)); BlockPos anchor = ClerkManager.anchor(merchant).orElseThrow();
+		merchant.setDeltaMovement(new Vec3(2, 1, -2)); merchant.snapTo(anchor.getX() + 3.5, anchor.getY(), anchor.getZ() + 3.5, 0, 0);
+		helper.runAfterDelay(40, () -> {
+			helper.assertTrue(merchant.distanceToSqr(anchor.getX() + .5, anchor.getY(), anchor.getZ() + .5) < 0.0001 && merchant.isNoAi() && merchant.getNavigation().isDone(), "Merchant must remain stationary without pathfinding"); helper.succeed();
+		});
+	}
+
+	private static Villager createMerchant(GameTestHelper helper, BlockPos relative) {
+		ArmorStand marker = createMarker(helper, relative, 0); ClerkManager.initializeMarker(helper.getLevel(), marker, 0);
+		BlockPos absolute = helper.absolutePos(relative);
+		return helper.getLevel().getEntities(EntityTypes.VILLAGER, new AABB(absolute).inflate(2), villager -> villager.entityTags().contains(ClerkManager.CLERK_TAG)).getFirst();
+	}
+	private static ArmorStand createMarker(GameTestHelper helper, BlockPos relative, int index) {
+		BlockPos absolute = helper.absolutePos(relative); ArmorStand marker = EntityTypes.ARMOR_STAND.create(helper.getLevel(), EntitySpawnReason.STRUCTURE);
+		if (marker == null) throw new IllegalStateException("Could not create marker");
+		snapCenter(marker, absolute); marker.addTag(ClerkManager.MARKER_PREFIX + index); helper.getLevel().addFreshEntity(marker); return marker;
+	}
+	private static void snapCenter(Entity entity, BlockPos pos) { entity.snapTo(pos.getX() + .5, pos.getY(), pos.getZ() + .5, 0, 0); }
 }

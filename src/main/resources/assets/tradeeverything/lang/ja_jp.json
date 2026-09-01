@@ -1,0 +1,21 @@
+{
+  "screen.tradeeverything.title": "TradeEverything 商人",
+  "screen.tradeeverything.search": "アイテム検索",
+  "screen.tradeeverything.search_hint": "アイテムを検索...",
+  "screen.tradeeverything.results": "%s 件",
+  "screen.tradeeverything.buy": "購入",
+  "screen.tradeeverything.price": "%s エメラルド",
+  "screen.tradeeverything.price_blocks": "%s エメラルドブロック",
+  "screen.tradeeverything.price_mixed": "%s ブロック + %s エメラルド",
+  "screen.tradeeverything.quantity": "数量: %s",
+  "screen.tradeeverything.affordable": "購入可能",
+  "screen.tradeeverything.unaffordable": "通貨不足",
+  "screen.tradeeverything.result.success": "購入しました",
+  "screen.tradeeverything.result.invalid_session": "取引セッションが閉じています",
+  "screen.tradeeverything.result.stale_catalog": "カタログが更新されました。商人を開き直してください",
+  "screen.tradeeverything.result.invalid_merchant": "商人を利用できないか、遠すぎます",
+  "screen.tradeeverything.result.disabled_item": "このアイテムは無効です",
+  "screen.tradeeverything.result.invalid_entry": "カタログ項目が不正です",
+  "screen.tradeeverything.result.insufficient_payment": "エメラルド通貨が不足しています",
+  "screen.tradeeverything.result.inventory_full": "インベントリ容量が不足しています"
+}

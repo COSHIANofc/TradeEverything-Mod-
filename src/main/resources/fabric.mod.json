@@ -3,14 +3,16 @@
   "id": "tradeeverything",
   "version": "${version}",
   "name": "TradeEverything",
-  "description": "A naturally generated trading post offering every registered vanilla item.",
+  "description": "A naturally generated trading post with one searchable merchant for Survival-obtainable vanilla items.",
   "authors": ["COSHIANofc"],
   "contact": {"sources": "https://github.com/COSHIANofc/TradeEverything-Mod-"},
   "license": "Apache-2.0",
-  "environment": "server",
+  "environment": "*",
   "entrypoints": {
-    "server": ["com.coshian.tradeeverything.TradeEverything"]
+    "main": ["com.coshian.tradeeverything.TradeEverything"],
+    "client": ["com.coshian.tradeeverything.client.TradeEverythingClient"]
   },
+  "mixins": ["tradeeverything.mixins.json"],
   "depends": {
     "fabricloader": ">=0.19.3",
     "minecraft": "~26.2",

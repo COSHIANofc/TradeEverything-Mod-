@@ -9,9 +9,11 @@ group = project.maven_group
 base { archivesName = project.archives_base_name }
 
 loom {
+	splitEnvironmentSourceSets()
 	mods {
 		tradeeverything {
 			sourceSet sourceSets.main
+			sourceSet sourceSets.client
 		}
 	}
 }

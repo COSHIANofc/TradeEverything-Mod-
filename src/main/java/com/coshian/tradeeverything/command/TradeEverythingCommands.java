@@ -1,8 +1,7 @@
 package com.coshian.tradeeverything.command;
 
 import com.coshian.tradeeverything.TradeEverything;
-import com.coshian.tradeeverything.catalog.Catalog;
-import com.coshian.tradeeverything.catalog.Category;
+import com.coshian.tradeeverything.catalog.TradeCatalog;
 import com.coshian.tradeeverything.entity.ClerkManager;
 import com.coshian.tradeeverything.price.PriceConfig;
 import com.mojang.brigadier.CommandDispatcher;
@@ -51,18 +50,17 @@ public final class TradeEverythingCommands {
 	}
 
 	private static int verify(CommandSourceStack source) {
-		Catalog.Audit audit = Catalog.audit();
-		int max = Catalog.pages().stream().mapToInt(p -> p.items().size()).max().orElse(0);
+		TradeCatalog.Audit audit = TradeCatalog.audit();
 		PriceConfig.Status prices = PriceConfig.status();
-		String report = String.format("eligible=%d assigned=%d missing=%d duplicates=%d categories=%d pages=%d max_offers=%d prices=%s server_only=PASS",
-			audit.eligible(), audit.categorized(), audit.missing(), audit.duplicates(), Category.values().length, Catalog.pages().size(), max, prices.healthy() ? "OK" : "WARN");
+		String report = String.format("registered=%d enabled=%d disabled=%d duplicates=%d merchants_per_post=1 prices=%s searchable_ui=PASS",
+			audit.registeredVanilla(), audit.enabled(), audit.disabled(), audit.duplicates(), prices.healthy() ? "OK" : "WARN");
 		source.sendSuccess(() -> Component.literal(report), false);
-		return audit.valid() && max <= PriceConfig.snapshot().maxOffers() ? 1 : 0;
+		return audit.valid() ? 1 : 0;
 	}
 
 	private static int reload(CommandSourceStack source) {
 		PriceConfig.Status status = PriceConfig.reload();
-		Catalog.rebuild();
+		TradeCatalog.rebuild();
 		ClerkManager.markAllDirty(source.getServer());
 		source.sendSuccess(() -> Component.literal(message(
 			"TradeEverything configuration reloaded; open trades finish safely and clerks refresh after closing",

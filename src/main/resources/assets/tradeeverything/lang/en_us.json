@@ -1,0 +1,21 @@
+{
+  "screen.tradeeverything.title": "TradeEverything Merchant",
+  "screen.tradeeverything.search": "Search items",
+  "screen.tradeeverything.search_hint": "Search items...",
+  "screen.tradeeverything.results": "%s results",
+  "screen.tradeeverything.buy": "Buy",
+  "screen.tradeeverything.price": "%s emeralds",
+  "screen.tradeeverything.price_blocks": "%s emerald blocks",
+  "screen.tradeeverything.price_mixed": "%s blocks + %s emeralds",
+  "screen.tradeeverything.quantity": "Quantity: %s",
+  "screen.tradeeverything.affordable": "Can afford",
+  "screen.tradeeverything.unaffordable": "Cannot afford",
+  "screen.tradeeverything.result.success": "Purchase complete",
+  "screen.tradeeverything.result.invalid_session": "Trade session is closed",
+  "screen.tradeeverything.result.stale_catalog": "Catalog changed; reopen the merchant",
+  "screen.tradeeverything.result.invalid_merchant": "Merchant is unavailable or too far away",
+  "screen.tradeeverything.result.disabled_item": "That item is disabled",
+  "screen.tradeeverything.result.invalid_entry": "Catalog entry is invalid",
+  "screen.tradeeverything.result.insufficient_payment": "Not enough emerald currency",
+  "screen.tradeeverything.result.inventory_full": "Not enough inventory space"
+}
