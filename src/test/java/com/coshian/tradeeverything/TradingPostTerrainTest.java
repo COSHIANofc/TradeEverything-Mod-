@@ -20,4 +20,19 @@ final class TradingPostTerrainTest {
 		assertTrue(TradingPostTerrain.select(0, 34, 0, 34, -64, 320,
 			(type, x, z) -> type == Heightmap.Types.WORLD_SURFACE_WG ? 70 : 60).isEmpty());
 	}
+
+	@Test void reportsWhyFootprintsAreRejected() {
+		var slope = TradingPostTerrain.analyze(0, 34, 0, 34, -64, 320, (type, x, z) -> x == 0 ? 70 : 90);
+		assertEquals(TradingPostTerrain.RejectionReason.SLOPE_TOO_STEEP, slope.rejection().orElseThrow().reason());
+		assertTrue(slope.rejection().orElseThrow().detail().contains("slope=20"));
+
+		var water = TradingPostTerrain.analyze(0, 34, 0, 34, -64, 320,
+			(type, x, z) -> type == Heightmap.Types.WORLD_SURFACE_WG ? 70 : 60);
+		assertEquals(TradingPostTerrain.RejectionReason.WATER_COVERED, water.rejection().orElseThrow().reason());
+		assertTrue(water.rejection().orElseThrow().detail().contains("depth=10"));
+
+		var height = TradingPostTerrain.analyze(0, 34, 0, 34, 60, 320, (type, x, z) -> 70);
+		assertEquals(TradingPostTerrain.RejectionReason.OUTSIDE_WORLD_HEIGHT, height.rejection().orElseThrow().reason());
+		assertTrue(height.rejection().orElseThrow().detail().contains("placementY=58"));
+	}
 }

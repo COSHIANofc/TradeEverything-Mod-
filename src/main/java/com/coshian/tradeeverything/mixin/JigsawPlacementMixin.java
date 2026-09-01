@@ -51,6 +51,6 @@ public abstract class JigsawPlacementMixin {
 			element.getGroundLevelDelta(), rotation, element.getBoundingBox(context.structureTemplateManager(), placedAt, rotation), liquids);
 		BoundingBox box = piece.getBoundingBox();
 		int centerX = (box.minX() + box.maxX()) / 2; int centerZ = (box.minZ() + box.maxZ()) / 2;
-		callback.setReturnValue(Optional.of(new Structure.GenerationStub(new BlockPos(centerX, plan.orElseThrow().floorY(), centerZ), builder -> builder.addPiece(piece))));
+		callback.setReturnValue(Optional.of(new Structure.GenerationStub(new BlockPos(centerX, plan.floorY(), centerZ), builder -> builder.addPiece(piece))));
 	}
 }
