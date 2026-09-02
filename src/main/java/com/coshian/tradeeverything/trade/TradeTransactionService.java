@@ -12,6 +12,8 @@ import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
+import net.minecraft.core.component.DataComponents;
+import net.minecraft.tags.ItemTags;
 
 public final class TradeTransactionService {
 	public static final int MAX_SELL_QUANTITY = 576;
@@ -35,10 +37,10 @@ public final class TradeTransactionService {
 		final int totalPrice, totalOutput;
 		try { totalPrice = Math.multiplyExact(trade.price(), quantity); totalOutput = Math.multiplyExact(trade.quantity(), quantity); }
 		catch (ArithmeticException exception) { return Result.ARITHMETIC_OVERFLOW; }
-		int blocks = totalPrice / 9; int emeralds = totalPrice % 9;
 		List<ItemStack> inventory = player.getInventory().getNonEquipmentItems();
 		List<ItemStack> updated = copy(inventory);
-		if (!remove(updated, Items.EMERALD_BLOCK, blocks) || !remove(updated, Items.EMERALD, emeralds)) return Result.INSUFFICIENT_PAYMENT;
+		try { if (!Currency.pay(updated, totalPrice)) return Result.INSUFFICIENT_PAYMENT; }
+		catch (ArithmeticException exception) { return Result.ARITHMETIC_OVERFLOW; }
 		if (!insert(updated, new ItemStack(trade.item()), totalOutput)) return Result.INVENTORY_FULL;
 		commit(player, inventory, updated);
 		return Result.SUCCESS;
@@ -54,6 +56,10 @@ public final class TradeTransactionService {
 		if (entry.isEmpty()) return Result.DISABLED_ITEM;
 		TradeCatalog.Entry trade = entry.orElseThrow();
 		if (!SurvivalEligibility.isEligible(trade.item()) || !trade.enabled() || trade.price() < 1) return Result.INVALID_CATALOG_ENTRY;
+		if (trade.item().builtInRegistryHolder().is(ItemTags.SHULKER_BOXES) && hasFilledShulker(inventoryFor(player), trade.item())) {
+			if (quantity != 1) return Result.INVALID_SELL_QUANTITY;
+			return sellShulker(player, inventoryFor(player), trade);
+		}
 
 		SellOffer offer;
 		try { offer = SellPricing.sellOfferFor(trade.price()); }
@@ -63,7 +69,7 @@ public final class TradeTransactionService {
 		final int reward;
 		try { reward = Math.multiplyExact(quantity / offer.itemQuantity(), offer.emeraldReward()); }
 		catch (ArithmeticException exception) { return Result.ARITHMETIC_OVERFLOW; }
-		List<ItemStack> inventory = player.getInventory().getNonEquipmentItems();
+		List<ItemStack> inventory = inventoryFor(player);
 		if (countSafe(inventory, trade.item()) < quantity) {
 			return count(inventory, trade.item()) >= quantity ? Result.UNSUPPORTED_ITEM_COMPONENTS : Result.INSUFFICIENT_SELLABLE_ITEMS;
 		}
@@ -73,6 +79,51 @@ public final class TradeTransactionService {
 		commit(player, inventory, updated);
 		return Result.SUCCESS;
 	}
+
+	/** Filled Shulkers are handled as one exact container. Nested Shulkers are rejected, never recursed. */
+	private static Result sellShulker(ServerPlayer player, List<ItemStack> inventory, TradeCatalog.Entry outer) {
+		for (int slot = 0; slot < inventory.size(); slot++) {
+			ItemStack box = inventory.get(slot);
+			if (!box.is(outer.item())) continue;
+			var contents = box.get(DataComponents.CONTAINER);
+			if (contents == null || contents.nonEmptyItemCopyStream().findAny().isEmpty()) continue;
+			if (box.getCount() != 1) return Result.UNSUPPORTED_ITEM_COMPONENTS;
+			long reward;
+			try { reward = shulkerReward(box, outer); }
+			catch (InvalidShulkerContents exception) { return Result.UNSUPPORTED_CONTAINER_CONTENTS; }
+			catch (ArithmeticException exception) { return Result.ARITHMETIC_OVERFLOW; }
+			List<ItemStack> updated = copy(inventory);
+			updated.set(slot, ItemStack.EMPTY);
+			if (!insertInto(updated, Items.EMERALD.getDefaultInstance(), reward)) return Result.REWARD_INVENTORY_FULL;
+			commit(player, inventory, updated);
+			return Result.SUCCESS;
+		}
+		return Result.INSUFFICIENT_SELLABLE_ITEMS;
+	}
+	private static boolean hasFilledShulker(List<ItemStack> inventory, net.minecraft.world.item.Item item) {
+		return inventory.stream().anyMatch(stack -> stack.is(item) && stack.get(DataComponents.CONTAINER) != null
+			&& stack.get(DataComponents.CONTAINER).nonEmptyItemCopyStream().findAny().isPresent());
+	}
+
+	private static long shulkerReward(ItemStack box, TradeCatalog.Entry outer) {
+		long total = rewardFor(outer, 1);
+		var contents = box.get(DataComponents.CONTAINER);
+		if (contents == null) return total;
+		for (ItemStack contained : contents.nonEmptyItemCopyStream().toList()) {
+			if (!SellEligibility.isSafeDefaultStack(contained) || contained.getItem().builtInRegistryHolder().is(ItemTags.SHULKER_BOXES)) throw new InvalidShulkerContents();
+			var entry = TradeCatalog.enabled(net.minecraft.core.registries.BuiltInRegistries.ITEM.getKey(contained.getItem())).orElseThrow(InvalidShulkerContents::new);
+			if (!SurvivalEligibility.isEligible(entry.item())) throw new InvalidShulkerContents();
+			total = Math.addExact(total, rewardFor(entry, contained.getCount()));
+		}
+		return total;
+	}
+	private static long rewardFor(TradeCatalog.Entry entry, int quantity) {
+		SellOffer offer = SellPricing.sellOfferFor(entry.price());
+		if (quantity <= 0 || quantity % offer.itemQuantity() != 0) throw new InvalidShulkerContents();
+		return Math.multiplyExact((long)quantity / offer.itemQuantity(), offer.emeraldReward());
+	}
+	private static final class InvalidShulkerContents extends RuntimeException { }
+	private static List<ItemStack> inventoryFor(ServerPlayer player) { return player.getInventory().getNonEquipmentItems(); }
 
 	private static Result validateSession(ServerPlayer player, int containerId, int requestedVersion) {
 		if (!(player.containerMenu instanceof TradeEverythingMenu menu) || menu.containerId != containerId) return Result.INVALID_SESSION;
@@ -88,6 +139,10 @@ public final class TradeTransactionService {
 		return copy;
 	}
 
+	static boolean insertInto(List<ItemStack> inventory, ItemStack inserted, long requestedAmount) {
+		if (requestedAmount < 0 || requestedAmount > Integer.MAX_VALUE) return false;
+		return insert(inventory, inserted, (int)requestedAmount);
+	}
 	private static boolean insert(List<ItemStack> inventory, ItemStack inserted, int amount) {
 		for (ItemStack stack : inventory) {
 			if (amount == 0) return true;
@@ -142,7 +197,7 @@ public final class TradeTransactionService {
 		INVALID_BUY_QUANTITY("invalid_buy_quantity"),
 		INVALID_ITEM("invalid_item"), INVALID_SELL_QUANTITY("invalid_sell_quantity"), INVALID_SELL_BUNDLE("invalid_sell_bundle"),
 		INSUFFICIENT_SELLABLE_ITEMS("insufficient_sellable_items"), UNSUPPORTED_ITEM_COMPONENTS("unsupported_item_components"),
-		REWARD_INVENTORY_FULL("reward_inventory_full"), ARITHMETIC_OVERFLOW("arithmetic_overflow");
+		REWARD_INVENTORY_FULL("reward_inventory_full"), UNSUPPORTED_CONTAINER_CONTENTS("unsupported_container_contents"), ARITHMETIC_OVERFLOW("arithmetic_overflow");
 		private final String code;
 		Result(String code) { this.code = code; }
 		public String translationKey() { return "screen.tradeeverything.result." + code; }

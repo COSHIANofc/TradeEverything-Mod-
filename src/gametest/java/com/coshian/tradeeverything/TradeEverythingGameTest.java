@@ -38,6 +38,7 @@ import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.ItemStackTemplate;
 import net.minecraft.world.item.Items;
 import net.minecraft.world.item.component.BundleContents;
+import net.minecraft.world.item.component.ItemContainerContents;
 import net.minecraft.world.level.GameType;
 import net.minecraft.world.level.storage.TagValueOutput;
 import net.minecraft.world.phys.AABB;
@@ -189,6 +190,11 @@ public final class TradeEverythingGameTest {
 				"Server transaction must use configured catalog values");
 			int delivered = player.getInventory().getNonEquipmentItems().stream().filter(stack -> stack.is(Items.COBBLESTONE)).mapToInt(ItemStack::getCount).sum();
 			helper.assertTrue(delivered == 16, "Configured output must be delivered exactly once");
+			var blockPlayer = (net.minecraft.server.level.ServerPlayer)helper.makeMockServerPlayer(GameType.SURVIVAL);
+			blockPlayer.setPos(merchant.position()); blockPlayer.containerMenu = new TradeEverythingMenu(10, blockPlayer.getInventory(), merchant.getId(), TradeCatalog.version());
+			blockPlayer.getInventory().add(new ItemStack(Items.EMERALD_BLOCK));
+			helper.assertTrue(TradeTransactionService.purchase(blockPlayer, 10, 92, cobblestone.id()) == TradeTransactionService.Result.SUCCESS, "One Emerald Block must fund a one-Emerald purchase");
+			helper.assertTrue(count(blockPlayer, Items.EMERALD) == 8 && count(blockPlayer, Items.EMERALD_BLOCK) == 0, "Block conversion must return exact Emerald change");
 			helper.succeed();
 		} catch (Exception exception) {
 			throw new RuntimeException(exception);
@@ -213,6 +219,7 @@ public final class TradeEverythingGameTest {
 				  "catalog_version": 93,
 				  "items": {
 				    "minecraft:diamond": {"emeralds": 10},
+				    "minecraft:shulker_box": {"emeralds": 10},
 				    "minecraft:cobblestone": {"emeralds": 1},
 				    "minecraft:oak_log": {"enabled": false}
 				  }
@@ -246,6 +253,19 @@ public final class TradeEverythingGameTest {
 			helper.assertTrue(TradeNetworking.handleSell(player, new SellRequest(11, 93, cobblestone, 8)) == TradeTransactionService.Result.SUCCESS, "Sell payload dispatch must invoke the authoritative service");
 			helper.assertTrue(TradeTransactionService.sell(player, 11, 93, cobblestone, 8) == TradeTransactionService.Result.SUCCESS, "Second Sell request is independently exact");
 			helper.assertTrue(count(player, Items.COBBLESTONE) == 0 && count(player, Items.EMERALD) == 27, "Two eight-item bundles must give exactly two Emeralds");
+
+			ItemStack filledShulker = new ItemStack(Items.SHULKER_BOX);
+			filledShulker.set(DataComponents.CONTAINER, ItemContainerContents.fromItems(List.of(new ItemStack(Items.DIAMOND, 2))));
+			player.getInventory().add(filledShulker);
+			Identifier shulker = BuiltInRegistries.ITEM.getKey(Items.SHULKER_BOX);
+			helper.assertTrue(TradeTransactionService.sell(player, 11, 93, shulker, 1) == TradeTransactionService.Result.SUCCESS, "Filled Shulker must sell its box and valid contents atomically");
+			helper.assertTrue(count(player, Items.SHULKER_BOX) == 0 && count(player, Items.EMERALD) == 42, "Filled Shulker reward must count outer and contents exactly once");
+			ItemStack invalidShulker = new ItemStack(Items.SHULKER_BOX);
+			ItemStack namedContent = new ItemStack(Items.DIAMOND); namedContent.set(DataComponents.CUSTOM_NAME, Component.literal("keep"));
+			invalidShulker.set(DataComponents.CONTAINER, ItemContainerContents.fromItems(List.of(namedContent)));
+			player.getInventory().add(invalidShulker);
+			helper.assertTrue(TradeTransactionService.sell(player, 11, 93, shulker, 1) == TradeTransactionService.Result.UNSUPPORTED_CONTAINER_CONTENTS, "Invalid Shulker contents must reject the entire sale");
+			helper.assertTrue(count(player, Items.SHULKER_BOX) == 1 && count(player, Items.EMERALD) == 42, "Rejected Shulker sale must not mutate inventory or reward currency");
 
 			var fullPlayer = (net.minecraft.server.level.ServerPlayer)helper.makeMockServerPlayer(GameType.SURVIVAL);
 			fullPlayer.setPos(merchant.position()); fullPlayer.containerMenu = new TradeEverythingMenu(12, fullPlayer.getInventory(), merchant.getId(), 93);
