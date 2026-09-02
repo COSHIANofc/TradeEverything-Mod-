@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.5.b-dev
+
+- Fixed GitHub Actions artifact uploads so the mod JAR path follows the active project version automatically.
+- Added Dependabot monitoring for Gradle and GitHub Actions dependencies.
+
 ## 0.5.a-dev
 
 - Added unified Emerald and Emerald Block purchase currency with exact automatic change.
