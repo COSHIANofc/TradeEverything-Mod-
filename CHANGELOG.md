@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.5.a-dev
+
+- Added unified Emerald and Emerald Block purchase currency with exact automatic change.
+- Added Shift quantity adjustment and atomic filled-Shulker selling with validated contents.
+- Moved Buy affordability feedback to the action button text color.
+
 ## [Unreleased]
 
 - Set the active development version to `0.4.b-dev`.

@@ -21,9 +21,11 @@ import net.minecraft.client.input.KeyEvent;
 import net.minecraft.client.input.MouseButtonEvent;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.network.chat.Component;
+import net.minecraft.ChatFormatting;
 import net.minecraft.world.entity.player.Inventory;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
+import net.minecraft.tags.ItemTags;
 
 public final class TradeEverythingScreen extends AbstractContainerScreen<TradeEverythingMenu> {
 	private static final int WIDTH = 300, HEIGHT = 220, ROW_HEIGHT = 24, VISIBLE_ROWS = 4;
@@ -57,8 +59,8 @@ public final class TradeEverythingScreen extends AbstractContainerScreen<TradeEv
 		addRenderableWidget(search);
 		buyMode = Button.builder(Component.translatable("screen.tradeeverything.buy"), b -> setMode(TradeMode.BUY)).bounds(leftPos + 205, topPos + HEADER_MODE_Y, 42, 18).build();
 		sellMode = Button.builder(Component.translatable("screen.tradeeverything.sell"), b -> setMode(TradeMode.SELL)).bounds(leftPos + 248, topPos + HEADER_MODE_Y, 42, 18).build();
-		minus = Button.builder(Component.literal("-"), b -> adjust(-1)).bounds(leftPos + 205, topPos + QUANTITY_CONTROL_Y, 20, 18).build();
-		plus = Button.builder(Component.literal("+"), b -> adjust(1)).bounds(leftPos + 270, topPos + QUANTITY_CONTROL_Y, 20, 18).build();
+		minus = Button.builder(Component.literal("-"), b -> adjust(-1, false)).bounds(leftPos + 205, topPos + QUANTITY_CONTROL_Y, 20, 18).build();
+		plus = Button.builder(Component.literal("+"), b -> adjust(1, false)).bounds(leftPos + 270, topPos + QUANTITY_CONTROL_Y, 20, 18).build();
 		buy = Button.builder(Component.translatable("screen.tradeeverything.buy"), button -> action()).bounds(leftPos + 205, topPos + ACTION_BUTTON_Y, 85, 20).build();
 		addRenderableWidget(buyMode); addRenderableWidget(sellMode); addRenderableWidget(minus); addRenderableWidget(plus); addRenderableWidget(buy); setInitialFocus(search); rebuildIfNeeded();
 	}
@@ -101,7 +103,7 @@ public final class TradeEverythingScreen extends AbstractContainerScreen<TradeEv
 		if (minecraft.player == null) return List.of();
 		Map<net.minecraft.world.item.Item, Integer> available = new IdentityHashMap<>();
 		for (ItemStack stack : minecraft.player.getInventory().getNonEquipmentItems()) {
-			if (!stack.isEmpty() && ItemStack.isSameItemSameComponents(stack, stack.getItem().getDefaultInstance()))
+			if (!stack.isEmpty() && (ItemStack.isSameItemSameComponents(stack, stack.getItem().getDefaultInstance()) || stack.getItem().builtInRegistryHolder().is(ItemTags.SHULKER_BOXES)))
 				available.merge(stack.getItem(), stack.getCount(), Math::addExact);
 		}
 		var result = new java.util.ArrayList<ClientTradeEntry>(available.size());
@@ -133,7 +135,7 @@ public final class TradeEverythingScreen extends AbstractContainerScreen<TradeEv
 		updateBuyState();
 	}
 	private void setMode(TradeMode next) { if (mode != next) { mode = next; selected = null; sourceMode = null; rebuildIfNeeded(); } }
-	private void adjust(int change) { if (selected != null) { if (mode == TradeMode.BUY) buyQuantity = net.minecraft.util.Mth.clamp(buyQuantity + change, 1, com.coshian.tradeeverything.trade.TradeTransactionService.MAX_BUY_QUANTITY); else { int step = SellPricing.sellOfferFor(selected.data().price()).itemQuantity(); sellQuantity += change * step; } updateBuyState(); } }
+	private void adjust(int change, boolean shiftHeld) { if (selected != null) { if (mode == TradeMode.BUY) buyQuantity = com.coshian.tradeeverything.trade.QuantityAdjustment.adjust(buyQuantity, change, 1, shiftHeld, 1, com.coshian.tradeeverything.trade.TradeTransactionService.MAX_BUY_QUANTITY); else { int step = SellPricing.sellOfferFor(selected.data().price()).itemQuantity(); int max = Math.min(com.coshian.tradeeverything.trade.TradeTransactionService.MAX_SELL_QUANTITY, selected.available()) / step * step; sellQuantity = com.coshian.tradeeverything.trade.QuantityAdjustment.adjust(sellQuantity, change, step, shiftHeld, step, max); } updateBuyState(); } }
 	private long fingerprint() {
 		if (minecraft.player == null) return 0;
 		long hash = 1;
@@ -143,11 +145,10 @@ public final class TradeEverythingScreen extends AbstractContainerScreen<TradeEv
 	}
 	private enum TradeMode { BUY, SELL }
 
-	private void updateBuyState() { if (buy != null) { buyMode.active = mode != TradeMode.BUY; sellMode.active = mode != TradeMode.SELL; buy.setMessage(Component.translatable(mode == TradeMode.BUY ? "screen.tradeeverything.buy" : "screen.tradeeverything.sell")); minus.visible = plus.visible = true; if (mode == TradeMode.BUY) { buyQuantity = net.minecraft.util.Mth.clamp(buyQuantity, 1, com.coshian.tradeeverything.trade.TradeTransactionService.MAX_BUY_QUANTITY); affordable = selected != null && canAfford(selected); buy.active = !buyPending && affordable; minus.active = buyQuantity > 1; plus.active = buyQuantity < com.coshian.tradeeverything.trade.TradeTransactionService.MAX_BUY_QUANTITY; } else { affordable = false; int step = selected == null ? 1 : SellPricing.sellOfferFor(selected.data().price()).itemQuantity(); int max = selected == null ? 0 : Math.min(com.coshian.tradeeverything.trade.TradeTransactionService.MAX_SELL_QUANTITY, selected.available()) / step * step; sellQuantity = max < step ? 0 : Math.max(step, Math.min(max, sellQuantity / step * step)); buy.active = !sellPending && selected != null && sellQuantity >= step; minus.active = sellQuantity > step; plus.active = sellQuantity + step <= max; } } }
+	private void updateBuyState() { if (buy != null) { buyMode.active = mode != TradeMode.BUY; sellMode.active = mode != TradeMode.SELL; minus.visible = plus.visible = true; if (mode == TradeMode.BUY) { buyQuantity = net.minecraft.util.Mth.clamp(buyQuantity, 1, com.coshian.tradeeverything.trade.TradeTransactionService.MAX_BUY_QUANTITY); affordable = selected != null && canAfford(selected); buy.setMessage(Component.translatable("screen.tradeeverything.buy").withStyle(affordable ? ChatFormatting.GREEN : ChatFormatting.RED)); buy.active = !buyPending && affordable; minus.active = buyQuantity > 1; plus.active = buyQuantity < com.coshian.tradeeverything.trade.TradeTransactionService.MAX_BUY_QUANTITY; } else { affordable = false; buy.setMessage(Component.translatable("screen.tradeeverything.sell")); int step = selected == null ? 1 : SellPricing.sellOfferFor(selected.data().price()).itemQuantity(); int max = selected == null ? 0 : Math.min(com.coshian.tradeeverything.trade.TradeTransactionService.MAX_SELL_QUANTITY, selected.available()) / step * step; sellQuantity = max < step ? 0 : Math.max(step, Math.min(max, sellQuantity / step * step)); buy.active = !sellPending && selected != null && sellQuantity >= step; minus.active = sellQuantity > step; plus.active = sellQuantity + step <= max; } } }
 	private boolean canAfford(ClientTradeEntry entry) {
-		long cost = (long)entry.data().price() * buyQuantity; if (cost > Integer.MAX_VALUE) return false;
-		int blocks = (int)cost / 9, emeralds = (int)cost % 9;
-		return count(Items.EMERALD_BLOCK) >= blocks && count(Items.EMERALD) >= emeralds;
+		long cost = (long)entry.data().price() * buyQuantity;
+		return com.coshian.tradeeverything.trade.Currency.value(minecraft.player.getInventory().getNonEquipmentItems()) >= cost;
 	}
 	private int count(net.minecraft.world.item.Item item) { return minecraft.player.getInventory().getNonEquipmentItems().stream().filter(stack -> stack.is(item)).mapToInt(ItemStack::getCount).sum(); }
 
@@ -192,7 +193,6 @@ public final class TradeEverythingScreen extends AbstractContainerScreen<TradeEv
 				centeredBounded(graphics, priceText(selected), DETAIL_PRIMARY_Y, 0xFFFFD060);
 				centeredBounded(graphics, Component.translatable("screen.tradeeverything.quantity", buyQuantity), DETAIL_SECONDARY_Y, 0xFFFFFFFF);
 				centeredBounded(graphics, totalPriceText(selected), DETAIL_TOTAL_Y, 0xFFFFD060);
-				centeredBounded(graphics, Component.translatable(affordable ? "screen.tradeeverything.affordable" : "screen.tradeeverything.unaffordable"), DETAIL_STATUS_Y, affordable ? 0xFF55FF55 : 0xFFFF5555);
 			} else {
 				var offer = SellPricing.sellOfferFor(selected.data().price()); int reward = sellQuantity / offer.itemQuantity() * offer.emeraldReward();
 				centeredBounded(graphics, Component.translatable("screen.tradeeverything.available", selected.available()), DETAIL_PRIMARY_Y, 0xFFFFFFFF);
@@ -210,16 +210,12 @@ public final class TradeEverythingScreen extends AbstractContainerScreen<TradeEv
 	}
 	private void centeredBounded(GuiGraphicsExtractor graphics, Component text, int y, int color) { graphics.centeredText(font, Component.literal(font.plainSubstrByWidth(text.getString(), DETAIL_WIDTH - 6)), leftPos + DETAIL_CENTER, topPos + y, color); }
 	private static Component priceText(ClientTradeEntry entry) {
-		int blocks = entry.data().price() / 9, emeralds = entry.data().price() % 9;
-		if (blocks > 0 && emeralds > 0) return Component.translatable("screen.tradeeverything.price_mixed", blocks, emeralds);
-		if (blocks > 0) return Component.translatable("screen.tradeeverything.price_blocks", blocks);
-		return Component.translatable("screen.tradeeverything.price", emeralds);
+		return Component.translatable("screen.tradeeverything.price", entry.data().price());
 	}
 	private Component totalPriceText(ClientTradeEntry entry) {
 		long total = (long)entry.data().price() * buyQuantity;
 		if (total > Integer.MAX_VALUE) return Component.translatable("screen.tradeeverything.total_price", "?");
-		int blocks = (int)total / 9, emeralds = (int)total % 9;
-		Component price = blocks > 0 && emeralds > 0 ? Component.translatable("screen.tradeeverything.price_mixed", blocks, emeralds) : blocks > 0 ? Component.translatable("screen.tradeeverything.price_blocks", blocks) : Component.translatable("screen.tradeeverything.price", emeralds);
+		Component price = Component.translatable("screen.tradeeverything.price", total);
 		return Component.translatable("screen.tradeeverything.total_price", price);
 	}
 
@@ -230,6 +226,8 @@ public final class TradeEverythingScreen extends AbstractContainerScreen<TradeEv
 		return super.mouseScrolled(x, y, scrollX, scrollY);
 	}
 	@Override public boolean mouseClicked(MouseButtonEvent event, boolean doubleClick) {
+		if (inside(event.x(), event.y(), leftPos + 205, topPos + QUANTITY_CONTROL_Y, 20, 18)) { adjust(-1, event.hasShiftDown()); return true; }
+		if (inside(event.x(), event.y(), leftPos + 270, topPos + QUANTITY_CONTROL_Y, 20, 18)) { adjust(1, event.hasShiftDown()); return true; }
 		if (inside(event.x(), event.y(), leftPos + 205, topPos + 22, 42, 18)) { setMode(TradeMode.BUY); return true; }
 		if (inside(event.x(), event.y(), leftPos + 248, topPos + 22, 42, 18)) { setMode(TradeMode.SELL); return true; }
 		for (int row = 0; row < VISIBLE_ROWS; row++) {

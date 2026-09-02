@@ -6,7 +6,7 @@ The mod adds a naturally generated Trading Post (`tradeeverything:trading_post`,
 
 ## Requirements and installation
 
-Minecraft 26.2, Fabric Loader 0.19.3 or a newer compatible stable version, Fabric API 0.158.0+26.2, TradeEverything 0.4.b-dev, and Azul Zulu Java 25 are required. Put Fabric API and `tradeeverything-0.4.b-dev.jar` in both the server and client `mods` directories.
+Minecraft 26.2, Fabric Loader 0.19.3 or a newer compatible stable version, Fabric API 0.158.0+26.2, TradeEverything 0.5.a-dev, and Azul Zulu Java 25 are required. Put Fabric API and `tradeeverything-0.5.a-dev.jar` in both the server and client `mods` directories.
 
 ## Trading Posts and commands
 
@@ -81,7 +81,9 @@ Automated tests cover search normalization/filtering, registry-ID search, disabl
 
 ## Versioning
 
-The current version is `0.4.b-dev`. TradeEverything uses `MAJOR.MINOR.REVISION-STATE`: major changes reset minor to `1` and revision to `a`; normal user-visible changes increment numeric minor and reset revision to `a`; internal/runtime-only fixes advance lowercase revision. `-dev`, `-beta`, and `-pre` identify development states; stable releases omit the suffix. Examples: `0.1.a-dev`, `0.2.a-beta`, `1.1.a`.
+The current version is `0.5.a-dev`. TradeEverything uses `MAJOR.MINOR.REVISION-STATE`: major changes reset minor to `1` and revision to `a`; normal user-visible changes increment numeric minor and reset revision to `a`; internal/runtime-only fixes advance lowercase revision. `-dev`, `-beta`, and `-pre` identify development states; stable releases omit the suffix. Examples: `0.1.a-dev`, `0.2.a-beta`, `1.1.a`.
+
+For purchases, one Emerald Block counts as nine Emeralds. Emeralds and Emerald Blocks are combined automatically, including exact Emerald change when a block is converted.
 
 ## License
 
