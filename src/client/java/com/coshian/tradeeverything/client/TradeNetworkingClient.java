@@ -8,7 +8,7 @@ import net.minecraft.resources.Identifier;
 public final class TradeNetworkingClient {
 	private TradeNetworkingClient() {}
 
-	public static void sendSellRequest(int containerId, int catalogVersion, Identifier itemId, int quantity) {
-		ClientPlayNetworking.send(new SellRequest(containerId, catalogVersion, itemId, quantity));
+	public static void sendSellRequest(int containerId, int catalogVersion, Identifier itemId, int quantity, int inventorySlot) {
+		ClientPlayNetworking.send(new SellRequest(containerId, catalogVersion, itemId, quantity, inventorySlot));
 	}
 }

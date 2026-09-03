@@ -31,6 +31,8 @@
   "screen.tradeeverything.available": "所持数: %s",
   "screen.tradeeverything.sell_offer": "%s個 → エメラルド%s個",
   "screen.tradeeverything.receive": "受取額: エメラルド%s個",
+  "screen.tradeeverything.sell_shulker_contents": "中身を売却（箱は残ります）",
+  "screen.tradeeverything.server_calculates_reward": "受取額はサーバーで計算されます",
   "screen.tradeeverything.total_price": "合計: %s",
   "command.tradeeverything.summon.success": "TradeEverythingの商人を %s %s %s に召喚しました",
   "command.tradeeverything.summon.failed": "TradeEverythingの商人を作成できませんでした",

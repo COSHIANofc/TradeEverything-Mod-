@@ -41,7 +41,7 @@ public final class TradeNetworking {
 
 	/** Shared thin dispatch seam for the server receiver and GameTest coverage. */
 	public static TradeTransactionService.Result handleSell(ServerPlayer player, SellRequest payload) {
-		return TradeTransactionService.sell(player, payload.containerId(), payload.version(), payload.itemId(), payload.quantity());
+		return TradeTransactionService.sell(player, payload.containerId(), payload.version(), payload.itemId(), payload.quantity(), payload.inventorySlot());
 	}
 
 	public static boolean open(ServerPlayer player, Villager merchant) {

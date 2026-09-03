@@ -26,8 +26,8 @@ final class ClientArchitectureMetadataTest {
 		assertTrue(client.contains("ClientModInitializer") && client.contains("EditBox") && client.contains("ClientPlayNetworking"));
 		assertEquals(List.of("containerId", "version", "itemId", "quantity"), java.util.Arrays.stream(com.coshian.tradeeverything.network.TradePayloads.PurchaseRequest.class.getRecordComponents()).map(java.lang.reflect.RecordComponent::getName).toList(),
 			"Client purchase requests must not contain price or output data");
-		assertEquals(List.of("containerId", "version", "itemId", "quantity"), java.util.Arrays.stream(com.coshian.tradeeverything.network.TradePayloads.SellRequest.class.getRecordComponents()).map(java.lang.reflect.RecordComponent::getName).toList(),
-			"Client Sell requests must not contain price, reward, or inventory totals");
+		assertEquals(List.of("containerId", "version", "itemId", "quantity", "inventorySlot"), java.util.Arrays.stream(com.coshian.tradeeverything.network.TradePayloads.SellRequest.class.getRecordComponents()).map(java.lang.reflect.RecordComponent::getName).toList(),
+			"Client Sell requests may select one inventory stack, but must not contain price, reward, or contents");
 		assertEquals(List.of("containerId", "transactionType", "success", "message"), java.util.Arrays.stream(com.coshian.tradeeverything.network.TradePayloads.PurchaseResult.class.getRecordComponents()).map(java.lang.reflect.RecordComponent::getName).toList(),
 			"Transaction responses must carry their operation type independently of the active UI tab");
 	}

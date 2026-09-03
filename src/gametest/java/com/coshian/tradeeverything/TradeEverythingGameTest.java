@@ -220,6 +220,7 @@ public final class TradeEverythingGameTest {
 				  "items": {
 				    "minecraft:diamond": {"emeralds": 10},
 				    "minecraft:shulker_box": {"emeralds": 10},
+				    "minecraft:blue_shulker_box": {"emeralds": 10},
 				    "minecraft:cobblestone": {"emeralds": 1},
 				    "minecraft:oak_log": {"enabled": false}
 				  }
@@ -250,28 +251,74 @@ public final class TradeEverythingGameTest {
 			helper.assertTrue(count(player, Items.DIAMOND) == 1 && count(player, Items.EMERALD) == 25, "Sell must remove only qualifying stacks and give the exact Buy 10-derived reward");
 			helper.assertTrue(TradeTransactionService.sell(player, 11, 93, cobblestone, 7) == TradeTransactionService.Result.INVALID_SELL_BUNDLE, "Buy 1 Sell requires eight items");
 			helper.assertTrue(TradeTransactionService.sell(player, 11, 93, cobblestone, 9) == TradeTransactionService.Result.INVALID_SELL_BUNDLE, "Sell bundles must not round quantities");
-			helper.assertTrue(TradeNetworking.handleSell(player, new SellRequest(11, 93, cobblestone, 8)) == TradeTransactionService.Result.SUCCESS, "Sell payload dispatch must invoke the authoritative service");
+			helper.assertTrue(TradeNetworking.handleSell(player, new SellRequest(11, 93, cobblestone, 8, -1)) == TradeTransactionService.Result.SUCCESS, "Sell payload dispatch must invoke the authoritative service");
 			helper.assertTrue(TradeTransactionService.sell(player, 11, 93, cobblestone, 8) == TradeTransactionService.Result.SUCCESS, "Second Sell request is independently exact");
 			helper.assertTrue(count(player, Items.COBBLESTONE) == 0 && count(player, Items.EMERALD) == 27, "Two eight-item bundles must give exactly two Emeralds");
 
+			ItemStack unselectedShulker = new ItemStack(Items.SHULKER_BOX);
+			unselectedShulker.set(DataComponents.CONTAINER, ItemContainerContents.fromItems(List.of(new ItemStack(Items.DIAMOND))));
 			ItemStack filledShulker = new ItemStack(Items.SHULKER_BOX);
+			filledShulker.set(DataComponents.CUSTOM_NAME, Component.literal("keep shell"));
 			filledShulker.set(DataComponents.CONTAINER, ItemContainerContents.fromItems(List.of(new ItemStack(Items.DIAMOND, 2))));
-			player.getInventory().add(filledShulker);
+			player.getInventory().add(unselectedShulker); player.getInventory().add(filledShulker);
 			Identifier shulker = BuiltInRegistries.ITEM.getKey(Items.SHULKER_BOX);
-			helper.assertTrue(TradeTransactionService.sell(player, 11, 93, shulker, 1) == TradeTransactionService.Result.SUCCESS, "Filled Shulker must sell its box and valid contents atomically");
-			helper.assertTrue(count(player, Items.SHULKER_BOX) == 0 && count(player, Items.EMERALD) == 42, "Filled Shulker reward must count outer and contents exactly once");
+			var blueShulkerItem = BuiltInRegistries.ITEM.getValue(Identifier.parse("minecraft:blue_shulker_box"));
+			int filledSlot = java.util.stream.IntStream.range(0, player.getInventory().getNonEquipmentItems().size())
+				.filter(slot -> player.getInventory().getNonEquipmentItems().get(slot).is(Items.SHULKER_BOX)
+					&& player.getInventory().getNonEquipmentItems().get(slot).get(DataComponents.CUSTOM_NAME) != null).findFirst().orElseThrow();
+			helper.assertTrue(TradeTransactionService.sell(player, 11, 93, shulker, 1, filledSlot) == TradeTransactionService.Result.SUCCESS, "Filled Shulker must sell valid contents atomically");
+			ItemStack retainedShell = player.getInventory().getNonEquipmentItems().get(filledSlot);
+			helper.assertTrue(player.getInventory().getNonEquipmentItems().stream().anyMatch(stack -> stack.is(Items.SHULKER_BOX) && stack.get(DataComponents.CONTAINER) != null)
+				&& retainedShell.get(DataComponents.CONTAINER) == null && retainedShell.get(DataComponents.CUSTOM_NAME) != null && count(player, Items.EMERALD) == 37,
+				"Only the selected filled Shulker must be emptied, preserving its named shell and rewarding its contents only");
+			player.getInventory().add(new ItemStack(Items.SHULKER_BOX));
+			helper.assertTrue(TradeTransactionService.sell(player, 11, 93, shulker, 1) == TradeTransactionService.Result.SUCCESS, "An empty Shulker must sell itself normally");
+			helper.assertTrue(count(player, Items.SHULKER_BOX) == 2 && count(player, Items.EMERALD) == 42, "Empty Shulker must grant its normal outer reward without touching filled or named shells");
 			ItemStack invalidShulker = new ItemStack(Items.SHULKER_BOX);
 			ItemStack namedContent = new ItemStack(Items.DIAMOND); namedContent.set(DataComponents.CUSTOM_NAME, Component.literal("keep"));
 			invalidShulker.set(DataComponents.CONTAINER, ItemContainerContents.fromItems(List.of(namedContent)));
 			player.getInventory().add(invalidShulker);
-			helper.assertTrue(TradeTransactionService.sell(player, 11, 93, shulker, 1) == TradeTransactionService.Result.UNSUPPORTED_CONTAINER_CONTENTS, "Invalid Shulker contents must reject the entire sale");
-			helper.assertTrue(count(player, Items.SHULKER_BOX) == 1 && count(player, Items.EMERALD) == 42, "Rejected Shulker sale must not mutate inventory or reward currency");
+			int invalidSlot = java.util.stream.IntStream.range(0, player.getInventory().getNonEquipmentItems().size()).filter(slot -> {
+				var contents = player.getInventory().getNonEquipmentItems().get(slot).get(DataComponents.CONTAINER);
+				return contents != null && contents.nonEmptyItemCopyStream().anyMatch(stack -> stack.get(DataComponents.CUSTOM_NAME) != null);
+			}).findFirst().orElseThrow();
+			helper.assertTrue(TradeTransactionService.sell(player, 11, 93, shulker, 1, invalidSlot) == TradeTransactionService.Result.UNSUPPORTED_CONTAINER_CONTENTS, "Invalid Shulker contents must reject the entire sale");
+			helper.assertTrue(count(player, Items.SHULKER_BOX) == 3 && player.getInventory().getNonEquipmentItems().get(invalidSlot).get(DataComponents.CONTAINER) != null && count(player, Items.EMERALD) == 42, "Rejected Shulker sale must not mutate inventory or reward currency");
+			ItemStack bundleRemainderShulker = new ItemStack(Items.SHULKER_BOX);
+			bundleRemainderShulker.set(DataComponents.CONTAINER, ItemContainerContents.fromItems(List.of(new ItemStack(Items.COBBLESTONE, 7))));
+			player.getInventory().add(bundleRemainderShulker);
+			int remainderSlot = java.util.stream.IntStream.range(0, player.getInventory().getNonEquipmentItems().size()).filter(slot -> {
+				var contents = player.getInventory().getNonEquipmentItems().get(slot).get(DataComponents.CONTAINER);
+				return contents != null && contents.nonEmptyItemCopyStream().anyMatch(stack -> stack.is(Items.COBBLESTONE) && stack.getCount() == 7);
+			}).findFirst().orElseThrow();
+			helper.assertTrue(TradeTransactionService.sell(player, 11, 93, shulker, 1, remainderSlot) == TradeTransactionService.Result.UNSUPPORTED_CONTAINER_CONTENTS, "Shulker bundle remainders must reject the whole sale");
+			helper.assertTrue(player.getInventory().getNonEquipmentItems().get(remainderSlot).get(DataComponents.CONTAINER) != null && count(player, Items.EMERALD) == 42, "Rejected bundle remainder must leave contents and reward unchanged");
+			ItemStack nestedShulker = new ItemStack(Items.SHULKER_BOX);
+			nestedShulker.set(DataComponents.CONTAINER, ItemContainerContents.fromItems(List.of(new ItemStack(blueShulkerItem))));
+			player.getInventory().add(nestedShulker);
+			int nestedSlot = java.util.stream.IntStream.range(0, player.getInventory().getNonEquipmentItems().size()).filter(slot -> {
+				var contents = player.getInventory().getNonEquipmentItems().get(slot).get(DataComponents.CONTAINER);
+				return contents != null && contents.nonEmptyItemCopyStream().anyMatch(stack -> stack.is(blueShulkerItem));
+			}).findFirst().orElseThrow();
+			helper.assertTrue(TradeTransactionService.sell(player, 11, 93, shulker, 1, nestedSlot) == TradeTransactionService.Result.UNSUPPORTED_CONTAINER_CONTENTS, "Nested Shulkers must not recurse");
+			ItemStack blueShulker = new ItemStack(blueShulkerItem);
+			blueShulker.set(DataComponents.CONTAINER, ItemContainerContents.fromItems(List.of(new ItemStack(Items.DIAMOND))));
+			player.getInventory().add(blueShulker);
+			Identifier blueShulkerId = BuiltInRegistries.ITEM.getKey(blueShulkerItem);
+			int blueSlot = java.util.stream.IntStream.range(0, player.getInventory().getNonEquipmentItems().size()).filter(slot -> player.getInventory().getNonEquipmentItems().get(slot).is(blueShulkerItem)).findFirst().orElseThrow();
+			helper.assertTrue(TradeTransactionService.sell(player, 11, 93, blueShulkerId, 1, blueSlot) == TradeTransactionService.Result.SUCCESS, "Colored filled Shulkers must sell contents through the same path");
+			helper.assertTrue(player.getInventory().getNonEquipmentItems().get(blueSlot).is(blueShulkerItem) && player.getInventory().getNonEquipmentItems().get(blueSlot).get(DataComponents.CONTAINER) == null && count(player, Items.EMERALD) == 47, "Colored Shulker shell must remain and only contents reward it");
 
 			var fullPlayer = (net.minecraft.server.level.ServerPlayer)helper.makeMockServerPlayer(GameType.SURVIVAL);
 			fullPlayer.setPos(merchant.position()); fullPlayer.containerMenu = new TradeEverythingMenu(12, fullPlayer.getInventory(), merchant.getId(), 93);
 			for (int slot = 0; slot < fullPlayer.getInventory().getNonEquipmentItems().size(); slot++) fullPlayer.getInventory().getNonEquipmentItems().set(slot, new ItemStack(Items.COBBLESTONE, 64));
 			helper.assertTrue(TradeTransactionService.sell(fullPlayer, 12, 93, cobblestone, 8) == TradeTransactionService.Result.REWARD_INVENTORY_FULL, "Sell must fail before removal when Emerald reward cannot fit");
 			helper.assertTrue(count(fullPlayer, Items.COBBLESTONE) == 64 * fullPlayer.getInventory().getNonEquipmentItems().size(), "Capacity failure must leave all sold items untouched");
+			ItemStack capacityShulker = new ItemStack(Items.SHULKER_BOX);
+			capacityShulker.set(DataComponents.CONTAINER, ItemContainerContents.fromItems(List.of(new ItemStack(Items.DIAMOND))));
+			fullPlayer.getInventory().getNonEquipmentItems().set(0, capacityShulker);
+			helper.assertTrue(TradeTransactionService.sell(fullPlayer, 12, 93, shulker, 1, 0) == TradeTransactionService.Result.REWARD_INVENTORY_FULL, "Filled Shulker reward capacity failure must reject before emptying");
+			helper.assertTrue(fullPlayer.getInventory().getNonEquipmentItems().get(0).get(DataComponents.CONTAINER) != null && count(fullPlayer, Items.EMERALD) == 0, "Capacity failure must retain filled Shulker and award nothing");
 			helper.succeed();
 		} catch (Exception exception) {
 			throw new RuntimeException(exception);

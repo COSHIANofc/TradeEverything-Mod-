@@ -48,6 +48,11 @@ public final class TradeTransactionService {
 
 	/** Performs one authoritative, component-safe item sell without client price or reward inputs. */
 	public static Result sell(ServerPlayer player, int containerId, int requestedVersion, Identifier itemId, int quantity) {
+		return sell(player, containerId, requestedVersion, itemId, quantity, -1);
+	}
+
+	/** A non-negative slot is required for a filled Shulker so the server empties the exact selected stack. */
+	public static Result sell(ServerPlayer player, int containerId, int requestedVersion, Identifier itemId, int quantity, int inventorySlot) {
 		Result session = validateSession(player, containerId, requestedVersion);
 		if (session != null) return session;
 		if (quantity <= 0 || quantity > MAX_SELL_QUANTITY) return Result.INVALID_SELL_QUANTITY;
@@ -56,9 +61,9 @@ public final class TradeTransactionService {
 		if (entry.isEmpty()) return Result.DISABLED_ITEM;
 		TradeCatalog.Entry trade = entry.orElseThrow();
 		if (!SurvivalEligibility.isEligible(trade.item()) || !trade.enabled() || trade.price() < 1) return Result.INVALID_CATALOG_ENTRY;
-		if (trade.item().builtInRegistryHolder().is(ItemTags.SHULKER_BOXES) && hasFilledShulker(inventoryFor(player), trade.item())) {
+		if (trade.item().builtInRegistryHolder().is(ItemTags.SHULKER_BOXES) && inventorySlot >= 0) {
 			if (quantity != 1) return Result.INVALID_SELL_QUANTITY;
-			return sellShulker(player, inventoryFor(player), trade);
+			return sellShulker(player, inventoryFor(player), trade, inventorySlot);
 		}
 
 		SellOffer offer;
@@ -80,33 +85,29 @@ public final class TradeTransactionService {
 		return Result.SUCCESS;
 	}
 
-	/** Filled Shulkers are handled as one exact container. Nested Shulkers are rejected, never recursed. */
-	private static Result sellShulker(ServerPlayer player, List<ItemStack> inventory, TradeCatalog.Entry outer) {
-		for (int slot = 0; slot < inventory.size(); slot++) {
-			ItemStack box = inventory.get(slot);
-			if (!box.is(outer.item())) continue;
-			var contents = box.get(DataComponents.CONTAINER);
-			if (contents == null || contents.nonEmptyItemCopyStream().findAny().isEmpty()) continue;
-			if (box.getCount() != 1) return Result.UNSUPPORTED_ITEM_COMPONENTS;
-			long reward;
-			try { reward = shulkerReward(box, outer); }
-			catch (InvalidShulkerContents exception) { return Result.UNSUPPORTED_CONTAINER_CONTENTS; }
-			catch (ArithmeticException exception) { return Result.ARITHMETIC_OVERFLOW; }
-			List<ItemStack> updated = copy(inventory);
-			updated.set(slot, ItemStack.EMPTY);
-			if (!insertInto(updated, Items.EMERALD.getDefaultInstance(), reward)) return Result.REWARD_INVENTORY_FULL;
-			commit(player, inventory, updated);
-			return Result.SUCCESS;
-		}
-		return Result.INSUFFICIENT_SELLABLE_ITEMS;
-	}
-	private static boolean hasFilledShulker(List<ItemStack> inventory, net.minecraft.world.item.Item item) {
-		return inventory.stream().anyMatch(stack -> stack.is(item) && stack.get(DataComponents.CONTAINER) != null
-			&& stack.get(DataComponents.CONTAINER).nonEmptyItemCopyStream().findAny().isPresent());
+	/** Filled Shulkers sell their contents only. Nested Shulkers are rejected, never recursed. */
+	private static Result sellShulker(ServerPlayer player, List<ItemStack> inventory, TradeCatalog.Entry outer, int slot) {
+		if (slot >= inventory.size()) return Result.INSUFFICIENT_SELLABLE_ITEMS;
+		ItemStack box = inventory.get(slot);
+		if (!box.is(outer.item())) return Result.INSUFFICIENT_SELLABLE_ITEMS;
+		var contents = box.get(DataComponents.CONTAINER);
+		if (contents == null || contents.nonEmptyItemCopyStream().findAny().isEmpty()) return Result.INSUFFICIENT_SELLABLE_ITEMS;
+		if (box.getCount() != 1) return Result.UNSUPPORTED_ITEM_COMPONENTS;
+		long reward;
+		try { reward = shulkerReward(box); }
+		catch (InvalidShulkerContents exception) { return Result.UNSUPPORTED_CONTAINER_CONTENTS; }
+		catch (ArithmeticException exception) { return Result.ARITHMETIC_OVERFLOW; }
+		List<ItemStack> updated = copy(inventory);
+		ItemStack retainedShell = box.copy();
+		retainedShell.remove(DataComponents.CONTAINER);
+		updated.set(slot, retainedShell);
+		if (!insertInto(updated, Items.EMERALD.getDefaultInstance(), reward)) return Result.REWARD_INVENTORY_FULL;
+		commit(player, inventory, updated);
+		return Result.SUCCESS;
 	}
 
-	private static long shulkerReward(ItemStack box, TradeCatalog.Entry outer) {
-		long total = rewardFor(outer, 1);
+	private static long shulkerReward(ItemStack box) {
+		long total = 0;
 		var contents = box.get(DataComponents.CONTAINER);
 		if (contents == null) return total;
 		for (ItemStack contained : contents.nonEmptyItemCopyStream().toList()) {

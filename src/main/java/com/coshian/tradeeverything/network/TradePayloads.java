@@ -46,12 +46,12 @@ public final class TradePayloads {
 		@Override public Type<PurchaseRequest> type() { return TYPE; }
 	}
 
-	/** Bounded request data only; all Sell economics and inventory state remain server-authoritative. */
-	public record SellRequest(int containerId, int version, Identifier itemId, int quantity) implements CustomPacketPayload {
+	/** Bounded request data only; the slot selects a filled container, never its contents or price. */
+	public record SellRequest(int containerId, int version, Identifier itemId, int quantity, int inventorySlot) implements CustomPacketPayload {
 		public static final Type<SellRequest> TYPE = new Type<>(TradeEverything.id("sell"));
 		public static final StreamCodec<RegistryFriendlyByteBuf, SellRequest> CODEC = StreamCodec.ofMember(SellRequest::write, SellRequest::read);
-		private static SellRequest read(RegistryFriendlyByteBuf buffer) { return new SellRequest(buffer.readContainerId(), buffer.readVarInt(), buffer.readIdentifier(), buffer.readVarInt()); }
-		private void write(RegistryFriendlyByteBuf buffer) { buffer.writeContainerId(containerId); buffer.writeVarInt(version); buffer.writeIdentifier(itemId); buffer.writeVarInt(quantity); }
+		private static SellRequest read(RegistryFriendlyByteBuf buffer) { return new SellRequest(buffer.readContainerId(), buffer.readVarInt(), buffer.readIdentifier(), buffer.readVarInt(), buffer.readVarInt()); }
+		private void write(RegistryFriendlyByteBuf buffer) { buffer.writeContainerId(containerId); buffer.writeVarInt(version); buffer.writeIdentifier(itemId); buffer.writeVarInt(quantity); buffer.writeVarInt(inventorySlot); }
 		@Override public Type<SellRequest> type() { return TYPE; }
 	}
 

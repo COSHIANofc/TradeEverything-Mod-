@@ -25,6 +25,7 @@ import net.minecraft.ChatFormatting;
 import net.minecraft.world.entity.player.Inventory;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
+import net.minecraft.core.component.DataComponents;
 import net.minecraft.tags.ItemTags;
 
 public final class TradeEverythingScreen extends AbstractContainerScreen<TradeEverythingMenu> {
@@ -59,8 +60,8 @@ public final class TradeEverythingScreen extends AbstractContainerScreen<TradeEv
 		addRenderableWidget(search);
 		buyMode = Button.builder(Component.translatable("screen.tradeeverything.buy"), b -> setMode(TradeMode.BUY)).bounds(leftPos + 205, topPos + HEADER_MODE_Y, 42, 18).build();
 		sellMode = Button.builder(Component.translatable("screen.tradeeverything.sell"), b -> setMode(TradeMode.SELL)).bounds(leftPos + 248, topPos + HEADER_MODE_Y, 42, 18).build();
-		minus = Button.builder(Component.literal("-"), b -> adjust(-1, false)).bounds(leftPos + 205, topPos + QUANTITY_CONTROL_Y, 20, 18).build();
-		plus = Button.builder(Component.literal("+"), b -> adjust(1, false)).bounds(leftPos + 270, topPos + QUANTITY_CONTROL_Y, 20, 18).build();
+		minus = Button.builder(Component.literal("-"), b -> adjust(-1, false, false)).bounds(leftPos + 205, topPos + QUANTITY_CONTROL_Y, 20, 18).build();
+		plus = Button.builder(Component.literal("+"), b -> adjust(1, false, false)).bounds(leftPos + 270, topPos + QUANTITY_CONTROL_Y, 20, 18).build();
 		buy = Button.builder(Component.translatable("screen.tradeeverything.buy"), button -> action()).bounds(leftPos + 205, topPos + ACTION_BUTTON_Y, 85, 20).build();
 		addRenderableWidget(buyMode); addRenderableWidget(sellMode); addRenderableWidget(minus); addRenderableWidget(plus); addRenderableWidget(buy); setInitialFocus(search); rebuildIfNeeded();
 	}
@@ -82,19 +83,20 @@ public final class TradeEverythingScreen extends AbstractContainerScreen<TradeEv
 			catalogEntries = menu.catalog().stream().map(data -> {
 				var item = BuiltInRegistries.ITEM.getOptional(data.id()).orElse(Items.AIR);
 				ItemStack stack = new ItemStack(item, data.quantity());
-				return new ClientTradeEntry(data, stack, stack.getHoverName().getString(), data.id().toString(), 0);
+				return new ClientTradeEntry(data, stack, stack.getHoverName().getString(), data.id().toString(), 0, -1);
 			}).filter(entry -> !entry.stack().isEmpty()).sorted(Comparator.comparing(ClientTradeEntry::localizedName, String.CASE_INSENSITIVE_ORDER)
 				.thenComparing(ClientTradeEntry::registryId)).toList();
 		}
 		long currentFingerprint = mode == TradeMode.SELL ? fingerprint() : inventoryFingerprint;
 		if (!catalogChanged && sourceMode == mode && (mode != TradeMode.SELL || inventoryFingerprint == currentFingerprint)) return;
 		var selectedId = selected == null ? null : selected.data().id();
+		int selectedSlot = selected == null ? -1 : selected.inventorySlot();
 		sourceMode = mode; inventoryFingerprint = currentFingerprint;
 		all = mode == TradeMode.BUY ? catalogEntries : sellEntries();
 		index = new TradeSearchIndex<>(all.stream().map(entry -> new TradeSearchIndex.Searchable<>(entry, entry.localizedName(), entry.registryId(), true)).toList());
 		filter(search == null ? "" : search.getValue());
 		if (selectedId != null) {
-			for (ClientTradeEntry entry : filtered) if (entry.data().id().equals(selectedId)) { selected = entry; break; }
+			for (ClientTradeEntry entry : filtered) if (entry.data().id().equals(selectedId) && entry.inventorySlot() == selectedSlot) { selected = entry; break; }
 			updateBuyState();
 		}
 	}
@@ -102,16 +104,32 @@ public final class TradeEverythingScreen extends AbstractContainerScreen<TradeEv
 	private List<ClientTradeEntry> sellEntries() {
 		if (minecraft.player == null) return List.of();
 		Map<net.minecraft.world.item.Item, Integer> available = new IdentityHashMap<>();
-		for (ItemStack stack : minecraft.player.getInventory().getNonEquipmentItems()) {
-			if (!stack.isEmpty() && (ItemStack.isSameItemSameComponents(stack, stack.getItem().getDefaultInstance()) || stack.getItem().builtInRegistryHolder().is(ItemTags.SHULKER_BOXES)))
+		var filledShulkers = new java.util.ArrayList<ClientTradeEntry>();
+		List<ItemStack> inventory = minecraft.player.getInventory().getNonEquipmentItems();
+		for (int slot = 0; slot < inventory.size(); slot++) {
+			ItemStack stack = inventory.get(slot);
+			if (stack.isEmpty()) continue;
+			if (isFilledShulker(stack)) {
+				for (ClientTradeEntry entry : catalogEntries) if (entry.stack().is(stack.getItem())) {
+					filledShulkers.add(new ClientTradeEntry(entry.data(), stack.copy(), stack.getHoverName().getString(), entry.registryId(), 1, slot));
+					break;
+				}
+			} else if (ItemStack.isSameItemSameComponents(stack, stack.getItem().getDefaultInstance())) {
 				available.merge(stack.getItem(), stack.getCount(), Math::addExact);
+			}
 		}
-		var result = new java.util.ArrayList<ClientTradeEntry>(available.size());
+		var result = new java.util.ArrayList<ClientTradeEntry>(available.size() + filledShulkers.size());
 		for (ClientTradeEntry entry : catalogEntries) {
 			int count = available.getOrDefault(entry.stack().getItem(), 0);
 			if (count > 0) result.add(entry.withAvailable(count));
 		}
+		result.addAll(filledShulkers);
+		result.sort(Comparator.comparing(ClientTradeEntry::localizedName, String.CASE_INSENSITIVE_ORDER).thenComparing(ClientTradeEntry::registryId).thenComparingInt(ClientTradeEntry::inventorySlot));
 		return List.copyOf(result);
+	}
+	private static boolean isFilledShulker(ItemStack stack) {
+		var contents = stack.get(DataComponents.CONTAINER);
+		return stack.getItem().builtInRegistryHolder().is(ItemTags.SHULKER_BOXES) && contents != null && contents.nonEmptyItemCopyStream().findAny().isPresent();
 	}
 
 	private void filter(String query) {
@@ -129,13 +147,13 @@ public final class TradeEverythingScreen extends AbstractContainerScreen<TradeEv
 	private void action() {
 		if (mode == TradeMode.BUY) purchase();
 		else if (!sellPending && selected != null) {
-			TradeNetworkingClient.sendSellRequest(menu.containerId, menu.catalogVersion(), selected.data().id(), sellQuantity);
+			TradeNetworkingClient.sendSellRequest(menu.containerId, menu.catalogVersion(), selected.data().id(), sellQuantity, selected.inventorySlot());
 			sellPending = true;
 		}
 		updateBuyState();
 	}
 	private void setMode(TradeMode next) { if (mode != next) { mode = next; selected = null; sourceMode = null; rebuildIfNeeded(); } }
-	private void adjust(int change, boolean shiftHeld) { if (selected != null) { if (mode == TradeMode.BUY) buyQuantity = com.coshian.tradeeverything.trade.QuantityAdjustment.adjust(buyQuantity, change, 1, shiftHeld, 1, com.coshian.tradeeverything.trade.TradeTransactionService.MAX_BUY_QUANTITY); else { int step = SellPricing.sellOfferFor(selected.data().price()).itemQuantity(); int max = Math.min(com.coshian.tradeeverything.trade.TradeTransactionService.MAX_SELL_QUANTITY, selected.available()) / step * step; sellQuantity = com.coshian.tradeeverything.trade.QuantityAdjustment.adjust(sellQuantity, change, step, shiftHeld, step, max); } updateBuyState(); } }
+	private void adjust(int change, boolean shiftHeld, boolean controlHeld) { if (selected != null) { if (mode == TradeMode.BUY) buyQuantity = com.coshian.tradeeverything.trade.QuantityAdjustment.adjust(buyQuantity, change, 1, shiftHeld, controlHeld, 1, com.coshian.tradeeverything.trade.TradeTransactionService.MAX_BUY_QUANTITY); else { int step = SellPricing.sellOfferFor(selected.data().price()).itemQuantity(); int max = Math.min(com.coshian.tradeeverything.trade.TradeTransactionService.MAX_SELL_QUANTITY, selected.available()) / step * step; sellQuantity = com.coshian.tradeeverything.trade.QuantityAdjustment.adjust(sellQuantity, change, step, shiftHeld, controlHeld, step, max); } updateBuyState(); } }
 	private long fingerprint() {
 		if (minecraft.player == null) return 0;
 		long hash = 1;
@@ -197,8 +215,13 @@ public final class TradeEverythingScreen extends AbstractContainerScreen<TradeEv
 				var offer = SellPricing.sellOfferFor(selected.data().price()); int reward = sellQuantity / offer.itemQuantity() * offer.emeraldReward();
 				centeredBounded(graphics, Component.translatable("screen.tradeeverything.available", selected.available()), DETAIL_PRIMARY_Y, 0xFFFFFFFF);
 				centeredBounded(graphics, Component.translatable("screen.tradeeverything.quantity", sellQuantity), DETAIL_SECONDARY_Y, 0xFFFFFFFF);
-				centeredBounded(graphics, Component.translatable("screen.tradeeverything.sell_offer", offer.itemQuantity(), offer.emeraldReward()), DETAIL_TOTAL_Y, 0xFFFFD060);
-				centeredBounded(graphics, Component.translatable("screen.tradeeverything.receive", reward), DETAIL_STATUS_Y, 0xFF55FF55);
+				if (selected.inventorySlot() >= 0) {
+					centeredBounded(graphics, Component.translatable("screen.tradeeverything.sell_shulker_contents"), DETAIL_TOTAL_Y, 0xFFFFD060);
+					centeredBounded(graphics, Component.translatable("screen.tradeeverything.server_calculates_reward"), DETAIL_STATUS_Y, 0xFF55FF55);
+				} else {
+					centeredBounded(graphics, Component.translatable("screen.tradeeverything.sell_offer", offer.itemQuantity(), offer.emeraldReward()), DETAIL_TOTAL_Y, 0xFFFFD060);
+					centeredBounded(graphics, Component.translatable("screen.tradeeverything.receive", reward), DETAIL_STATUS_Y, 0xFF55FF55);
+				}
 			}
 			graphics.centeredText(font, Component.literal(Integer.toString(mode == TradeMode.BUY ? buyQuantity : sellQuantity)), leftPos + DETAIL_CENTER, topPos + QUANTITY_CONTROL_Y + 5, 0xFFFFFFFF);
 		}
@@ -226,8 +249,8 @@ public final class TradeEverythingScreen extends AbstractContainerScreen<TradeEv
 		return super.mouseScrolled(x, y, scrollX, scrollY);
 	}
 	@Override public boolean mouseClicked(MouseButtonEvent event, boolean doubleClick) {
-		if (inside(event.x(), event.y(), leftPos + 205, topPos + QUANTITY_CONTROL_Y, 20, 18)) { adjust(-1, event.hasShiftDown()); return true; }
-		if (inside(event.x(), event.y(), leftPos + 270, topPos + QUANTITY_CONTROL_Y, 20, 18)) { adjust(1, event.hasShiftDown()); return true; }
+		if (inside(event.x(), event.y(), leftPos + 205, topPos + QUANTITY_CONTROL_Y, 20, 18)) { adjust(-1, event.hasShiftDown(), event.hasControlDown()); return true; }
+		if (inside(event.x(), event.y(), leftPos + 270, topPos + QUANTITY_CONTROL_Y, 20, 18)) { adjust(1, event.hasShiftDown(), event.hasControlDown()); return true; }
 		if (inside(event.x(), event.y(), leftPos + 205, topPos + 22, 42, 18)) { setMode(TradeMode.BUY); return true; }
 		if (inside(event.x(), event.y(), leftPos + 248, topPos + 22, 42, 18)) { setMode(TradeMode.SELL); return true; }
 		for (int row = 0; row < VISIBLE_ROWS; row++) {

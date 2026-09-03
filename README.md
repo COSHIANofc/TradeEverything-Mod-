@@ -6,7 +6,7 @@ The mod adds a naturally generated Trading Post (`tradeeverything:trading_post`,
 
 ## Requirements and installation
 
-Minecraft 26.2, Fabric Loader 0.19.3 or a newer compatible stable version, Fabric API 0.158.0+26.2, TradeEverything 0.5.b-dev, and Azul Zulu Java 25 are required. Put Fabric API and `tradeeverything-0.5.b-dev.jar` in both the server and client `mods` directories.
+Minecraft 26.2, Fabric Loader 0.19.3 or newer, Fabric API 0.157.0+26.2 or newer compatible version, TradeEverything 0.6.a-dev, and Azul Zulu Java 25 are required. Put Fabric API and `tradeeverything-0.6.a-dev.jar` in both the server and client `mods` directories.
 
 ## Trading Posts and commands
 
@@ -75,13 +75,13 @@ java -version
 ./gradlew generateStructureTemplates
 ```
 
-The project follows Fabric's official 26.2 baseline: Loom 1.17, Gradle 9.5.1, Loader 0.19.3, Fabric API 0.158.0+26.2, Java 25, and Mojang's unobfuscated names. `TradingPostTemplateGenerator` is reproducible source for the generated NBT included in the JAR; no copied Minecraft asset is committed.
+The project uses proven minimums for Minecraft 26.2: Loom 1.17.2, Gradle 9.7.1, Loader 0.19.3, Fabric API 0.157.0+26.2, Java 25, and Mojang's unobfuscated names. `TradingPostTemplateGenerator` is reproducible source for the generated NBT included in the JAR; no copied Minecraft asset is committed.
 
 Automated tests cover search normalization/filtering, registry-ID search, disabled-entry exclusion, catalog uniqueness and value validation, forged/stale/disabled/underfunded purchase rejection, atomic delivery, one-marker structure generation, merchant migration/idempotence, persistent anchors, normal merchant AI, terrain selection, client/common metadata, and payload shape. Exact GUI layout, focus, scrolling feel, tooltips, live packet flow, right-click opening, and natural-generation appearance require in-game verification.
 
 ## Versioning
 
-The current version is `0.5.b-dev`. TradeEverything uses `MAJOR.MINOR.REVISION-STATE`: major changes reset minor to `1` and revision to `a`; normal user-visible changes increment numeric minor and reset revision to `a`; internal/runtime-only fixes advance lowercase revision. `-dev`, `-beta`, and `-pre` identify development states; stable releases omit the suffix. Examples: `0.1.a-dev`, `0.2.a-beta`, `1.1.a`.
+The current version is `0.6.a-dev`. TradeEverything uses `MAJOR.MINOR.REVISION-STATE`: major changes reset minor to `1` and revision to `a`; normal user-visible changes increment numeric minor and reset revision to `a`; internal/runtime-only fixes advance lowercase revision. `-dev`, `-beta`, and `-pre` identify development states; stable releases omit the suffix. Examples: `0.1.a-dev`, `0.2.a-beta`, `1.1.a`.
 
 For purchases, one Emerald Block counts as nine Emeralds. Emeralds and Emerald Blocks are combined automatically, including exact Emerald change when a block is converted.
 

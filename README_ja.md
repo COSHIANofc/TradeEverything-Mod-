@@ -6,7 +6,7 @@
 
 ## 必要環境と導入
 
-Minecraft 26.2、Fabric Loader 0.19.3以上の互換安定版、Fabric API 0.158.0+26.2、TradeEverything 0.5.b-dev、Azul Zulu Java 25が必要です。サーバーとクライアント双方の `mods` にFabric APIと `tradeeverything-0.5.b-dev.jar` を配置します。
+Minecraft 26.2、Fabric Loader 0.19.3以上、Fabric API 0.157.0+26.2以上の互換版、TradeEverything 0.6.a-dev、Azul Zulu Java 25が必要です。サーバーとクライアント双方の `mods` にFabric APIと `tradeeverything-0.6.a-dev.jar` を配置します。
 
 ## 自然生成とコマンド
 
@@ -74,13 +74,13 @@ export PATH="$JAVA_HOME/bin:$PATH"
 ./gradlew generateStructureTemplates
 ```
 
-Fabric 26.2 公式基準（Loom 1.17、Gradle 9.5.1、Loader 0.19.3、Fabric API 0.158.0+26.2、Java 25、非難読化名）に従います。`TradingPostTemplateGenerator` が JAR 内 NBT の再現可能なソースで、Minecraft 資産のコピーはコミットしません。
+Minecraft 26.2で検証済みの最低要件（Loom 1.17.2、Gradle 9.7.1、Loader 0.19.3、Fabric API 0.157.0+26.2、Java 25、非難読化名）に従います。`TradingPostTemplateGenerator` が JAR 内 NBT の再現可能なソースで、Minecraft 資産のコピーはコミットしません。
 
 自動テストは検索正規化、ID検索、無効項目排除、カタログ一意性、値検証、偽装・古い・無効・支払不足要求の拒否、出力1回、単一マーカー、商人移行／冪等性、anchor永続化、静止、地形選択、client/common metadata、payload形状を検証します。GUI配置、フォーカス、スクロール感、tooltip、実packet通信、右クリック開画面、自然生成外観はゲーム内確認が必要です。
 
 ## バージョニング
 
-現在のバージョンは `0.5.b-dev` です。形式は `MAJOR.MINOR.REVISION-STATE` です。MAJOR更新時はMINORを `1`、REVISIONを `a` に戻します。通常の利用者向け変更は数値MINORを増やしてREVISIONを `a` に戻し、仕様を変えない内部・実行時修正だけが小文字REVISIONを進めます。`-dev`、`-beta`、`-pre` は開発状態を表し、安定版は接尾辞を付けません。例: `0.1.a-dev`、`0.2.a-beta`、`1.1.a`。
+現在のバージョンは `0.6.a-dev` です。形式は `MAJOR.MINOR.REVISION-STATE` です。MAJOR更新時はMINORを `1`、REVISIONを `a` に戻します。通常の利用者向け変更は数値MINORを増やしてREVISIONを `a` に戻し、仕様を変えない内部・実行時修正だけが小文字REVISIONを進めます。`-dev`、`-beta`、`-pre` は開発状態を表し、安定版は接尾辞を付けません。例: `0.1.a-dev`、`0.2.a-beta`、`1.1.a`。
 
 購入時はエメラルドブロック1個をエメラルド9個として扱います。エメラルドとエメラルドブロックの所持数を合算し、必要ならエメラルドのお釣りを自動で返します。
 

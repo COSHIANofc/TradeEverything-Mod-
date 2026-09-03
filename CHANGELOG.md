@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.6.a-dev
+
+- Filled Shulker Boxes now sell validated contents while retaining an empty shell; empty boxes still sell normally.
+- Changed accelerated quantity controls to 64-item Shift and 32-item Shift+Control boundaries.
+- Reduced the proven Fabric API baseline and replaced the Loom snapshot with the matching stable release.
+
 ## 0.5.b-dev
 
 - Fixed GitHub Actions artifact uploads so the mod JAR path follows the active project version automatically.

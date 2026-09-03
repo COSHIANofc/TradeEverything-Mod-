@@ -31,6 +31,8 @@
   "screen.tradeeverything.available": "Available: %s",
   "screen.tradeeverything.sell_offer": "%s items → %s Emeralds",
   "screen.tradeeverything.receive": "You receive: %s Emeralds",
+  "screen.tradeeverything.sell_shulker_contents": "Sell contents; box remains",
+  "screen.tradeeverything.server_calculates_reward": "Reward calculated by server",
   "screen.tradeeverything.total_price": "Total: %s",
   "command.tradeeverything.summon.success": "TradeEverything merchant summoned at %s %s %s",
   "command.tradeeverything.summon.failed": "Could not create a TradeEverything merchant",
